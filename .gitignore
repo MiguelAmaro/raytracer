@@ -1,0 +1,6 @@
+#filetype
+*.ppm
+#directories
+data
+build
+vtune

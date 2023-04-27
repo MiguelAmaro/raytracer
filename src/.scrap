@@ -1,0 +1,184 @@
+
+  v3f64 a = V3f64(1.0,1.0,1.0);
+  v3f64 b = V3f64(0.75,0.75,0.75);
+  v3f64 r = Sub(a, b); //correct
+  fprintf(stderr, "Sub: x: %f y: %f z: %f\n", r.x,r.y,r.z);
+  r = Mul(a, b); //correct
+  fprintf(stderr, "Mul: x: %f y: %f z: %f\n", r.x,r.y,r.z);
+  a = V3f64(0.0,1.0,0.0);
+  b = V3f64(0.0,0.707,0.0);
+  f64 r1 = Dot(a, b); // correct
+  fprintf(stderr, "Dot: %f\n", r1);
+  a = V3f64(0.707,0.707,0.0);
+  r1 = Length(a); //correct
+  fprintf(stderr, "Length: %f\n", r1);
+  a = V3f64(100.0,100.0,0.0);
+  r1 = LengthSquared(a); // dunno
+  fprintf(stderr, "Length Squard: %f\n", r1);
+  a = V3f64(0.0,1.0,0.0);
+  b = V3f64(0.0,0.0,-1.0);
+  r = Cross(a, b); // correct
+  fprintf(stderr, "Cross: x: %f y: %f z: %f\n", r.x,r.y,r.z);
+  a = V3f64(1.0,1.0,1.0);
+  b = V3f64(0.0,0.0,0.0);
+  r = Lerp(a, b, 0.9); // correct
+  fprintf(stderr, "Le`rp: x: %f y: %f z: %f\n", r.x,r.y,r.z);
+  a = V3f64(10.0,10.0,10.0);
+  r = Scale(a, 0.5); // correct
+  fprintf(stderr, "Le`rp: x: %f y: %f z: %f\n", r.x,r.y,r.z);
+  fprintf(stderr, "Origin: x: %f y: %f z: %f\n", Origin.x,Origin.y,Origin.z);
+  fprintf(stderr, "VH: x: %f y: %f z: %f\n", Vertical.x,Vertical.y,Vertical.z);
+  fprintf(stderr, "VW: x: %f y: %f z: %f\n", Horizontal.x,Horizontal.y,Horizontal.z);
+  fprintf(stderr, "LLC: x: %f y: %f z: %f\n", LowerLeftCorner.x,LowerLeftCorner.y,LowerLeftCorner.z);
+  fprintf(stderr, "\n\n");
+  //fprintf(stderr, "VW: x: %f y: %f z: %f\n", r.x,r.y,r.z);
+  //fprintf(stderr, "VW: x: %f y: %f z: %f\n", r.x,r.y,r.z);
+  fprintf(stdout, "P3\n%d %d\n255\n", ImageWidth, ImageHeight);
+  for(s32 j = ImageHeight-1; j>=0; --j)
+  {
+    fprintf(stderr, "\rscan lines remaining... %d ", j);
+    fflush(stderr);
+    for(s32 i = 0; i<ImageWidth; ++i)
+    {
+      v3f64 PixelColor = V3f64(0.0,0.0,0.0);
+      for(s32 s = 0; s<SamplesPerPixel; s++)
+      {
+        // NOTE(MIGUEL): The anti-aliasing already requires and average. The operation can be
+        //               used for motion blur since we can randomly choose a sphere position
+        //               in the line segment it moves in for each sample we take for the anti-aliasing.
+        // TODO(MIGUEL): Read the random number generator section
+        f64 u = (f64)(i + RandF64Uni())/(f64)(ImageWidth-1);
+        f64 v = (f64)(j + RandF64Uni())/(f64)(ImageHeight-1);
+        ray Ray = CameraGetRay(&Camera, u, v);
+        PixelColor = Add(PixelColor, RayColor(Ray, MaxDepth, &World));
+      }
+      WriteColorPPM(PixelColor, SamplesPerPixel);
+    }
+    fprintf(stdout,"#newline\n");
+  }
+  u8 *img = OSMemoryAlloc(sizeof(u32)*9);
+  v3f64 c = V3f64(1.0,0.5,0.25);
+  WriteColor(ImageGetPixel(img, 3, 0,0), c, 1);
+  c = V3f64(1.0,0.5,1.0);
+  WriteColor(ImageGetPixel(img, 3, 2,2), c, 1);
+  c = V3f64(0.25,0.25,0.25);
+  WriteColor(ImageGetPixel(img, 3, 1,1), c, 1);
+  for(s32 y=0;y<3;y++)
+  {
+    for(s32 x=0;x<3;x++)
+    {
+      u32 *px = ImageGetPixel(img, 3, x,y);
+      WriteToPPM(*px);
+    }
+    fprintf(stdout, "\n");
+  }
+for(sphere *Sphere=World->Spheres; Sphere!=World->SphereNext; Sphere++)
+  {
+    if(SurfaceSphereHit(Sphere, &TempHit, Ray, Mint, ClosestHit))
+    {
+      SurfaceWasHit = 1;
+      ClosestHit = TempHit.t;
+      WriteToRef(Hit, TempHit);
+    }
+  }
+  for(sphere_moving *Sphere=World->SpheresMoving; Sphere!=World->SphereMovingNext; Sphere++)
+  {
+    if(SurfaceSphereMovingHit(Sphere, &TempHit, Ray, Mint, ClosestHit))
+    {
+      SurfaceWasHit = 1;
+      ClosestHit = TempHit.t;
+      WriteToRef(Hit, TempHit);
+    }
+  }
+  for(plane *Plane=World->Planes; Plane!=World->PlaneNext; Plane++)
+  {
+    if(SurfacePlaneHit(Plane, &TempHit, Ray, Mint, ClosestHit))
+    {
+      SurfaceWasHit = 1;
+      ClosestHit = TempHit.t;
+      WriteToRef(Hit, TempHit);
+    }
+  }
+void WorldPlaneAdd(world *World, v3f64 Normal, f64 Dist, u32 MatId)
+{
+  if(WorldPlaneStackFull(World)) { return; }
+  plane NewPlane = { .Normal = Normal, .Dist = Dist, .MatId = MatId };
+  WriteToRef(World->PlaneNext, NewPlane);
+  World->PlaneNext++;
+  return;
+}
+void WorldSphereAdd(world *World, v3f64 Pos, f64 Radius, u32 MatId)
+{
+  if(WorldSphereStackFull(World)) { return; }
+  sphere NewSphere = { .Pos = Pos, .Radius = Radius, .MatId = MatId };
+  WriteToRef(World->SphereNext, NewSphere);
+  World->SphereNext++;
+  return;
+}
+void WorldSphereMovingAdd(world *World, v3f64 Pos0, v3f64 Pos1, f64 Time0, f64 Time1, f64 Radius, u32 MatId)
+{
+  if(WorldSphereMovingStackFull(World)) { return; }
+  sphere_moving NewSphere = {
+    .Pos0   = Pos0,
+    .Pos1   = Pos1,
+    .Time0  = Time0,
+    .Time1  = Time1,
+    .Radius = Radius,
+    .MatId  = MatId
+  };
+  WriteToRef(World->SphereMovingNext, NewSphere);
+  World->SphereMovingNext++;
+  return;
+}
+
+World->PlaneNext         = World->Planes;
+  World->SphereNext        = World->Spheres;
+  World->SphereMovingNext  = World->SpheresMoving;
+  World->MaterialNext      = World->Materials;
+  World->SphereOnePastLast       = World->Spheres      +WORLD_STACK_MAXCOUNT;
+  World->SphereMovingOnePastLast = World->SpheresMoving+WORLD_STACK_MAXCOUNT;
+  World->PlaneOnePastLast        = World->Planes       +WORLD_STACK_MAXCOUNT;
+  World->MaterialOnePastLast     = World->Materials    +WORLD_STACK_MAXCOUNT;
+
+
+inline b32 WorldPlaneStackEmpty         (world *World) { return (World->PlaneNext    == World->Planes); }
+inline b32 WorldSphereStackEmpty        (world *World) { return (World->SphereNext   == World->Spheres); }
+inline b32 WorldSphereMovingStackEmpty  (world *World) { return (World->SphereMovingNext   == World->SpheresMoving); }
+inline b32 WorldMaterialStackEmpty      (world *World) { return (World->MaterialNext == World->Materials); }
+inline b32 WorldPlaneStackFull          (world *World) { return (World->PlaneNext    == World->PlaneOnePastLast); }
+inline b32 WorldSphereStackFull         (world *World) { return (World->SphereNext   == World->SphereOnePastLast); }
+inline b32 WorldSphereMovingStackFull   (world *World) { return (World->SphereMovingNext   == World->SphereMovingOnePastLast); }
+inline b32 WorldMaterialStackFull       (world *World) { return (World->MaterialNext == World->MaterialOnePastLast); }
+void WorldSphereAdd(world *World, v3f64 Pos, f64 Radius, u32 MatId)
+{
+  if(WorldSphereStackFull(World)) { return; }
+  sphere NewSphere = { .Pos = Pos, .Radius = Radius, .MatId = MatId };
+  WriteToRef(World->SphereNext, NewSphere);
+  World->SphereNext++;
+  return;
+}
+void WorldSphereMovingAdd(world *World, v3f64 Pos0, v3f64 Pos1, f64 Time0, f64 Time1, f64 Radius, u32 MatId)
+{
+  if(WorldSphereMovingStackFull(World)) { return; }
+  sphere_moving NewSphere = {
+    .Pos0   = Pos0,
+    .Pos1   = Pos1,
+    .Time0  = Time0,
+    .Time1  = Time1,
+    .Radius = Radius,
+    .MatId  = MatId
+  };
+  WriteToRef(World->SphereMovingNext, NewSphere);
+  World->SphereMovingNext++;
+  return;
+}
+
+// storage
+  plane     Planes   [WORLD_STACK_MAXCOUNT];
+  sphere    Spheres  [WORLD_STACK_MAXCOUNT];
+  sphere_moving SpheresMoving[WORLD_STACK_MAXCOUNT];
+  plane    *PlaneNext;    plane    *PlaneOnePastLast;
+  sphere   *SphereNext;   sphere   *SphereOnePastLast;
+  sphere_moving   *SphereMovingNext;   sphere_moving   *SphereMovingOnePastLast;
+  
+  // stack mgmt
