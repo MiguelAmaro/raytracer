@@ -3,6 +3,13 @@
 
 #include <windows.h>
 
+u8 *OSGetWorkingDir(u8 *Buffer, u64 Size)
+{
+  DWORD Result = GetCurrentDirectory(SafeTruncateu64(Size), (LPTSTR)Buffer);
+  Assert(Result!=0);
+  return Buffer;
+}
+
 //~ TIMER
 typedef struct os_timer os_timer;
 struct os_timer

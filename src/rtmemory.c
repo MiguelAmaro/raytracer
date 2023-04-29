@@ -1,4 +1,13 @@
 
+void MemoryCopy(void *DstBuffer, u64 DstSize, void *SrcBuffer, u64 SrcSize)
+{ 
+  u8* Src = (u8 *)SrcBuffer;
+  u8* Dst = (u8 *)DstBuffer;
+  for(u32 Index = 0; Index < SrcSize && Index < DstSize;
+      Index++, Src++, Dst++)
+  { *Dst = *Src; }
+  return;
+}
 void MemorySet(u32 Value, void *Memory, u64 Size)
 {
   u8 *Dest = (u8 *)Memory;

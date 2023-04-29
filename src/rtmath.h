@@ -4,7 +4,8 @@
 #define Min(a, b) ((a<b)?a:b)
 #define Max(a, b) ((a>b)?a:b)
 #define Clamp(x, Low, High) (Min(Max(Low, x), High))
-#define Pi64 3.1415926535897932385
+#define Pi64  (1.0*3.1415926535897932385)
+#define Tau64 (2.0*3.1415926535897932385)
 
 #define ARG1(a, ...) (a)
 
@@ -19,6 +20,10 @@
 #define Lerp(a, b, t) _Generic((a), v3f64: Lerp_v3f64)((a), (b), (t))
 #define Tan(a)        _Generic((a), f64: Tan_f64)((a))
 #define Cos(a)        _Generic((a), f64: Cos_f64)((a))
+#define Sin(a)        _Generic((a), f64: Sin_f64)((a))
+#define Floor(a)        _Generic((a), f64: Floor_f64)((a))
+#define Ceil(a)        _Generic((a), f64: Ceil_f64)((a))
+#define Abs(a)        _Generic((a), f64: Abs_f64)((a))
 #define Length(a)     _Generic((a), v3f64: Length_v3f64)((a))
 #define LengthSquared(a) _Generic((a), v3f64: LengthSquared_v3f64)((a))
 #define SquareRoot(a)    _Generic((a), f64: SquareRoot_f64, v3f64: SquareRoot_v3f64)((a))
@@ -82,6 +87,26 @@ f64 Cos_f64(f64 a)
   f64 r = cos(a);
   return r;
 }
+f64 Sin_f64(f64 a)
+{
+  f64 r = sin(a);
+  return r;
+}
+f64 Floor_f64(f64 a)
+{
+  f64 r = floor(a);
+  return r;
+}
+f64 Ceil_f64(f64 a)
+{
+  f64 r = ceil(a);
+  return r;
+}
+f64 Abs_f64(f64 a)
+{
+  f64 r = fabs(a);
+  return r;
+}
 
 // VECTOR
 typedef union v3f64 v3f64;
@@ -91,13 +116,14 @@ union v3f64
   struct { f64 r; f64 g; f64 b; };
   f64 e[4];
 };
-#define V3f64(...) _Generic(ARG1(__VA_ARGS__), \
-f64:  V3f64_3f64)(__VA_ARGS__)
+#define V3f64(...) _Generic(ARG1(__VA_ARGS__), f64: V3f64_3f64, s32: V3f64_3s32)(__VA_ARGS__)
+
 v3f64 V3f64_3f64(f64 x, f64 y, f64 z)
 {
   v3f64 r = {x,y,z};
   return r;
 }
+v3f64 V3f64_3s32(s32 x, s32 y, s32 z) { return V3f64_3f64((f64)x,(f64)y,(f64)z); }
 v3f64 V3f64RandBi(void)
 {
   v3f64 r = {RandF64Bi(),RandF64Bi(),RandF64Bi()};

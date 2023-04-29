@@ -10,6 +10,7 @@
 #include "rtmemory.h"
 #include "rtutil.h"
 #include "rtray.h"
+#include "rtnoise.h"
 #include "rtcamera.h"
 #include "rttexture.h"
 #include "rtsurface.h"
@@ -75,30 +76,30 @@ DWORD WorkProcRenderTiles(void *Param)
 }
 int main(void)
 {
-  fprintf(stderr, "hello raytracer\n");
+  u8 wd[256] = {0};
+  fprintf(stderr, "hello raytracer [%s]\n", OSGetWorkingDir(wd, 256));
   OSEntropyInit();
   RandSetSeed();
   
   // IMAGE
   f64 AspectRatio = 16.0/9.0;
-  s32 ImageWidth  = 1000;
+  s32 ImageWidth  = 800;
   s32 ImageHeight = (int)(ImageWidth/AspectRatio);
-  s32 SamplesPerPixel = 100;
-  s32 MaxDepth = 100;
+  s32 SamplesPerPixel = 50;
+  s32 MaxDepth = 10;
   
   // WORLD
   world World = {0};
   WorldInit(&World);
-  SceneRandom(&World);
-  //SceneBVHTest(&World);
   
-  // CAMERA
-  v3f64 LookFrom = V3f64(13.0,2.0,3.0);
-  v3f64 LookAt   = V3f64(0.0,0.0,0.0);
-  v3f64 RelUp    = V3f64(0.0,1.0,0.0);
-  f64   DistToFocus = 10.0;
-  f64   Aperture = 0.1;
-  camera Camera = CameraInit(LookFrom, LookAt, RelUp, 20.0, AspectRatio, Aperture, DistToFocus, 0.0, 1.0);
+  // SCENE
+  camera Camera = {0};
+  //SceneRandom(&World, &Camera, AspectRatio);
+  //SceneBVHTest(&World, &Camera, AspectRatio);
+  //SceneTwoSpheres(&World, &Camera, AspectRatio);
+  //SceneTwoPerlinSpheres(&World, &Camera, AspectRatio);
+  SceneEarthSolo(&World, &Camera, AspectRatio);
+  
   
   // WORK
   u32 CoreCount = OSGetCoreCount();
@@ -113,13 +114,15 @@ int main(void)
   {
     ThreadHandles[CoreIdx] = OSThreadCreate(&WorkQueue, WorkProcRenderTiles);
   }
-  WorkProcRenderTiles(&WorkQueue);
+  while(RenderTile(&WorkQueue)) {
+    fprintf(stderr,"\ntiles %lld of %d completed\n", WorkQueue.TileRetiredCount, WorkQueue.TileTotalCount);
+  };
   OSThreadSync(ThreadHandles, CoreCount);
   u64 End = OSTimerGetTick();
   f64 SecondsElapsed = OSTimerGetSecondsElepsed(Begin, End);
-  fprintf(stderr,
-          "done..\n"
-          "sec elapsed: %f", SecondsElapsed);
+  fprintf(stderr,"done..\nsec elapsed: %f\nmin elapsed: %f\n", SecondsElapsed, SecondsElapsed/60.0);
+  
+  
   // RENDER AS PPM
   fprintf(stderr, "\n\n writing as ppm..\n");
   fprintf(stdout, "P3\n%d %d\n255\n", ImageWidth, ImageHeight);

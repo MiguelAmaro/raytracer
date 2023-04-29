@@ -8,7 +8,7 @@ aabb AABBInit(v3f64 min, v3f64 max)
   aabb Result = { .min = min, .max = max };
   return Result;
 }
-aabb AABBInitConainter(aabb a, aabb b)
+aabb AABBInitContainer(aabb a, aabb b)
 {
   v3f64 min = V3f64(fmin(a.min.x, b.min.x),
                     fmin(a.min.y, b.min.y),
@@ -37,7 +37,7 @@ b32 ABBBInitSphereMoving(sphere_moving *Sphere, f64 Time0, f64 Time1, aabb *Outp
                           Add(SphereMovingGetPos(Sphere, Time0), V3f64(Sphere->Radius, Sphere->Radius, Sphere->Radius)));
   aabb Result1 = AABBInit(Sub(SphereMovingGetPos(Sphere, Time1), V3f64(Sphere->Radius, Sphere->Radius, Sphere->Radius)),
                           Add(SphereMovingGetPos(Sphere, Time1), V3f64(Sphere->Radius, Sphere->Radius, Sphere->Radius)));
-  WriteToRef(Output, AABBInitConainter(Result0, Result1));
+  WriteToRef(Output, AABBInitContainer(Result0, Result1));
   return 1;
 }
 b32 AABBInitSurface(surface *Surface, f64 Time0, f64 Time1, aabb *Output)
@@ -68,21 +68,22 @@ b32 AABBInitSurface(surface *Surface, f64 Time0, f64 Time1, aabb *Output)
 //               Using this approach would entail having a single list of this one type and just having push function
 //               for a given surface fill in and write to the appropriate union type.
 //
-typedef b32 aabb_comparator(surface *a, surface *b);
-b32 AabbComp(surface *a, surface *b, u32 axis)
+typedef int aabb_comparator(const void *a, const void *b);
+int AabbComp(const void *a, const void *b, u32 axis)
 {
+  const surface *sa = a; const surface *sb = b;
   aabb Aabb_a = {0};
   aabb Aabb_b = {0};
-  if(!AABBInitBVHNode(&a->BvhNode, &Aabb_a) ||
-     !AABBInitBVHNode(&b->BvhNode, &Aabb_b))
+  if(!AABBInitBVHNode(&sa->BvhNode, &Aabb_a) ||
+     !AABBInitBVHNode(&sb->BvhNode, &Aabb_b))
   {
     fprintf(stderr, "error no bounding box bvh node");
   }
   return Aabb_a.min.e[axis]<Aabb_b.min.e[axis];
 }
-b32 AabbXComp(surface *a, surface *b) { return AabbComp(a,b,0); }
-b32 AabbYComp(surface *a, surface *b) { return AabbComp(a,b,1); }
-b32 AabbZComp(surface *a, surface *b) { return AabbComp(a,b,2); }
+int AabbXComp(const void *a, const void *b) { return AabbComp(a,b,0); }
+int AabbYComp(const void *a, const void *b) { return AabbComp(a,b,1); }
+int AabbZComp(const void *a, const void *b) { return AabbComp(a,b,2); }
 
 void BVHInit(surface *BvhSurface, surface *SurfaceList, u64 Start, u64 End, f64 Time0, f64 Time1, arena *Arena)
 {
@@ -129,7 +130,7 @@ void BVHInit(surface *BvhSurface, surface *SurfaceList, u64 Start, u64 End, f64 
   {
     fprintf(stderr, "some message, should check tut");
   }
-  BvhNode->AABB = AABBInitConainter(BoxLeft, BoxRight);
+  BvhNode->AABB = AABBInitContainer(BoxLeft, BoxRight);
   return;
 }
 

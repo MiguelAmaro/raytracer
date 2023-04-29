@@ -31,10 +31,10 @@ inline v3f64 SphereMovingGetPos(sphere_moving *SphereMoving, f64 Time)
 }
 inline void SphereGetUV(v3f64 Pos, f64 *u, f64 *v)
 {
-  f64 theta = acos(-Pos.y);
-  f64 phi   = atan2(-Pos.z, Pos.x+Pi64);
-  WriteToRef(u, phi  /(2.0*Pi64));
-  WriteToRef(v, theta/(1.0*Pi64));
+  f64 theta =  acos(-Pos.y);
+  f64 phi   = atan2(-Pos.z, Pos.x)+Pi64;
+  WriteToRef(u, phi  /Tau64);
+  WriteToRef(v, theta/Pi64 );
   return;
 }
 inline void HitSetFaceNormal(hit *Hit, ray Ray, v3f64 OutwardNormal)
@@ -43,6 +43,7 @@ inline void HitSetFaceNormal(hit *Hit, ray Ray, v3f64 OutwardNormal)
   Hit->Normal = Hit->IsFrontFace?OutwardNormal:Scale(OutwardNormal,-1.0);
   return;
 }
+
 //~ BOUNCE BEHAVIOR
 v3f64 Refract(v3f64 uv, v3f64 Normal, f64 etai_over_etat)
 {
@@ -73,14 +74,14 @@ b32 MaterialScatter(material *Material, texture *Texture, ray Ray, hit Hit, v3f6
       if(NearZero(ScatterDir)) { ScatterDir = Hit.Normal; }
       
       WriteToRef(Scattered, RayInit(Hit.Pos, ScatterDir, Ray.Time));
-      WriteToRef(Atten, Texture->Color);
+      WriteToRef(Atten, TextureGetColor(Texture, Hit.u, Hit.v, Hit.Pos));
       Result = 1;
     } break;
     case MaterialKind_Metal:
     {
       v3f64 Reflected = Reflect(Normalize(Ray.Dir), Hit.Normal);
       WriteToRef(Scattered, RayInit(Hit.Pos, Add(Reflected, Scale(RandInUnitSphere(), Material->Fuzz)), Ray.Time));
-      WriteToRef(Atten, Texture->Color);
+      WriteToRef(Atten, TextureGetColor(Texture, Hit.u, Hit.v, Hit.Pos));
       Result = (Dot(Scattered->Dir, Hit.Normal)>0);
     } break;
     case MaterialKind_Dielectric:
@@ -127,10 +128,11 @@ b32 SurfaceSphereHit(sphere *Sphere, hit *Hit, ray Ray, f64 Mint, f64 Maxt)
   NewHit.Pos = RayAt(Ray, Root);
   v3f64 OutwardNormal = Scale(Sub(NewHit.Pos, Sphere->Pos),1.0/Sphere->Radius);
   HitSetFaceNormal(&NewHit, Ray, OutwardNormal);
-  SphereGetUV(OutwardNormal, &Hit->u, &Hit->v);
+  SphereGetUV(OutwardNormal, &NewHit.u, &NewHit.v);
   NewHit.MatId = Sphere->MatId;
   WriteToRef(Hit, NewHit); 
   return 1;
+  
 }
 b32 SurfaceSphereMovingHit(sphere_moving *Sphere, hit *Hit, ray Ray, f64 Mint, f64 Maxt)
 {
@@ -155,6 +157,7 @@ b32 SurfaceSphereMovingHit(sphere_moving *Sphere, hit *Hit, ray Ray, f64 Mint, f
   NewHit.Pos = RayAt(Ray, Root);
   v3f64 OutwardNormal = Scale(Sub(NewHit.Pos, SphereMovingGetPos(Sphere, Ray.Time)),1.0/Sphere->Radius);
   HitSetFaceNormal(&NewHit, Ray, OutwardNormal);
+  SphereGetUV(OutwardNormal, &NewHit.u, &NewHit.v);
   NewHit.MatId = Sphere->MatId;
   WriteToRef(Hit, NewHit); 
   return 1;
