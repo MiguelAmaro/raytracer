@@ -113,7 +113,7 @@ union v3f64
 {
   struct { f64 x; f64 y; f64 z; };
   struct { f64 r; f64 g; f64 b; };
-  f64 e[4];
+  f64 e[3];
 };
 #define V3f64(...) _Generic(ARG1(__VA_ARGS__), f64: V3f64_3f64, s32: V3f64_3s32)(__VA_ARGS__)
 

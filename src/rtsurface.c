@@ -48,6 +48,26 @@ inline rect SurfaceRectYZInit(f64 y0, f64 y1, f64 z0, f64 z1, f64 Offset, u32 Ma
   };
   return Result;
 }
+inline box SurfaceBoxInit(v3f64 min, v3f64 max, u32 MatId)
+{
+  box Result = { .min = min, .max = max, .MatId = MatId };
+  return Result;
+}
+inline transformed_inst SurfaceTransformedInstanceInit(transform_kind Kind, surface *Instance, v3f64 Offset, f64 CosTheta, f64 SinTheta, b32 HasBox)
+{
+  transformed_inst Result = { .Kind = Kind, .Instance = Instance };
+  if(Kind & TransformKind_Translate)
+  {
+    Result.Offset = Offset;
+  }
+  if(Kind & TransformKind_Translate)
+  {
+    Result.CosTheta = CosTheta;
+    Result.SinTheta = SinTheta;
+    Result.HasBox   = HasBox;
+  }
+  return Result;
+}
 
 //~ HELPERS
 inline v3f64 SphereMovingGetPos(sphere_moving *SphereMoving, f64 Time)
@@ -149,7 +169,7 @@ v3f64 MaterialEmmited(material *Material, texture *Texture, f64 u, f64 v, v3f64 
 //~ SURFACE INTERSECTION TESTS
 b32 SurfaceSphereHit(sphere *Sphere, hit *Hit, ray Ray, f64 Mint, f64 Maxt)
 {
-  hit NewHit = {0};
+  hit NewHit = ObjCopyFromRef(hit, Hit);
   // TODO(MIGUEL): Read the sphere interesectio code simplification
   v3f64 oc = Sub(Ray.Origin, Sphere->Pos);
   f64 a = LengthSquared(Ray.Dir);
@@ -178,7 +198,7 @@ b32 SurfaceSphereHit(sphere *Sphere, hit *Hit, ray Ray, f64 Mint, f64 Maxt)
 }
 b32 SurfaceSphereMovingHit(sphere_moving *Sphere, hit *Hit, ray Ray, f64 Mint, f64 Maxt)
 {
-  hit NewHit = {0};
+  hit NewHit = ObjCopyFromRef(hit, Hit);
   // TODO(MIGUEL): Read the sphere interesectio code simplification
   v3f64 oc = Sub(Ray.Origin, SphereMovingGetPos(Sphere, Ray.Time));
   f64 a = LengthSquared(Ray.Dir);
@@ -221,19 +241,13 @@ b32 AABBHit(aabb *Aabb, ray Ray, f64 tmin, f64 tmax)
 b32 SurfaceBVHNodeHit(bvh_node *BvhNode, hit *Hit, ray Ray, f64 tmin, f64 tmax)
 {
   if(!AABBHit(&BvhNode->AABB, Ray, tmin, tmax)) return HIT_NOTDETECTED;
-  b32 hit_left  = SurfaceHit(BvhNode->Left, Hit, Ray, tmin, tmax);
+  b32 hit_left  = SurfaceHit(BvhNode->Left , Hit, Ray, tmin, tmax);
   b32 hit_right = SurfaceHit(BvhNode->Right, Hit, Ray, tmin, hit_left?Hit->t:tmax);
   return (hit_left || hit_right);
 }
-#if 0
-b32 SurfacePlaneHit(plane *Plane, hit *Hit, ray Ray, f64 Mint, f64 Maxt)
-{
-  return HIT_DETECTED;
-}
-#endif
 b32 SurfaceRectXYHit(rect *Rect, hit *Hit, ray Ray, f64 Mint, f64 Maxt)
 {
-  hit NewHit = {0};
+  hit NewHit = ObjCopyFromRef(hit, Hit);
   r3f64 p = Rect->Points;
   f64 t = (Rect->Offset - Ray.Origin.z)/Ray.Dir.z;
   if(t < Mint || t > Maxt) return HIT_NOTDETECTED;
@@ -254,7 +268,7 @@ b32 SurfaceRectXYHit(rect *Rect, hit *Hit, ray Ray, f64 Mint, f64 Maxt)
 }
 b32 SurfaceRectXZHit(rect *Rect, hit *Hit, ray Ray, f64 Mint, f64 Maxt)
 {
-  hit NewHit = {0};
+  hit NewHit = ObjCopyFromRef(hit, Hit);
   r3f64 p = Rect->Points;
   f64 t = (Rect->Offset - Ray.Origin.y)/Ray.Dir.y;
   if(t < Mint || t > Maxt) return HIT_NOTDETECTED;
@@ -275,7 +289,7 @@ b32 SurfaceRectXZHit(rect *Rect, hit *Hit, ray Ray, f64 Mint, f64 Maxt)
 }
 b32 SurfaceRectYZHit(rect *Rect, hit *Hit, ray Ray, f64 Mint, f64 Maxt)
 {
-  hit NewHit = {0};
+  hit NewHit = ObjCopyFromRef(hit, Hit);
   r3f64 p = Rect->Points;
   f64 t = (Rect->Offset - Ray.Origin.x)/Ray.Dir.x;
   if(t < Mint || t > Maxt) return HIT_NOTDETECTED;
@@ -293,6 +307,11 @@ b32 SurfaceRectYZHit(rect *Rect, hit *Hit, ray Ray, f64 Mint, f64 Maxt)
   NewHit.Pos = RayAt(Ray, t);
   WriteToRef(Hit, NewHit);
   return HIT_DETECTED;
+}
+b32 SurfaceBoxHit(box *Box, hit *Hit, ray Ray, f64 Mint, f64 Maxt)
+{
+  b32 Result = SurfaceListHit(Box->SidesList, 6, Hit, Ray, Mint, Maxt);
+  return Result;
 }
 b32 SurfaceHit(surface *Surface, hit *Hit, ray Ray, f64 Mint, f64 Maxt)
 {
@@ -314,9 +333,45 @@ b32 SurfaceHit(surface *Surface, hit *Hit, ray Ray, f64 Mint, f64 Maxt)
     case SurfaceKind_RectYZ: {
       Result = SurfaceRectYZHit(&Surface->Rect, Hit, Ray, Mint, Maxt);
     }break;
+    case SurfaceKind_Box: {
+      Result = SurfaceBoxHit(&Surface->Box, Hit, Ray, Mint, Maxt);
+    }break;
     case SurfaceKind_BVHNode: {
       Result = SurfaceBVHNodeHit(&Surface->BvhNode, Hit, Ray, Mint, Maxt);
     }break;
   }
   return Result;
+}
+b32 SurfaceListHit(surface *Surfaces, u32 SurfaceCount, hit *Hit, ray Ray, f64 Mint, f64 Maxt)
+{
+  b32 SurfaceWasHit = 0;
+  f64 ClosestHit = Maxt;
+  hit TempHit = {0};
+  
+  for(u32 SurfaceId=0; SurfaceId<SurfaceCount; SurfaceId++)
+  {
+    if(SurfaceHit(&Surfaces[SurfaceId], &TempHit, Ray, Mint, ClosestHit))
+    {
+      SurfaceWasHit = 1;
+      ClosestHit = TempHit.t;
+      WriteToRef(Hit, TempHit);
+    }
+  }
+  return SurfaceWasHit;
+}
+b32 SurfaceBVHListHit(surface *BVHList, u32 BVHCount, hit *Hit, ray Ray, f64 Mint, f64 Maxt)
+{
+  b32 SurfaceWasHit = 0;
+  f64 ClosestHit = Maxt;
+  hit TempHit = {0};
+  for(u32 BVHId=0; BVHId<BVHCount; BVHId++)
+  {
+    if(SurfaceHit(&BVHList[BVHId], &TempHit, Ray, Mint, ClosestHit))
+    {
+      SurfaceWasHit = 1;
+      ClosestHit = TempHit.t;
+      WriteToRef(Hit, TempHit);
+    }
+  }
+  return SurfaceWasHit;
 }

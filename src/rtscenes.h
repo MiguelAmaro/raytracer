@@ -35,7 +35,7 @@ void SceneBVHTest(world *World, camera *Camera, f64 AspectRatio)
   WorldSurfaceAdd(World, SurfaceKind_Sphere, &Sphere[0]);
   WorldSurfaceAdd(World, SurfaceKind_Sphere, &Sphere[1]);
   WorldSurfaceAdd(World, SurfaceKind_Sphere, &Sphere[2]);
-  BVHInit(&World->BVHRoot, World->Surfaces, 0, World->SurfaceCount, 0.0, 1.0, &World->Arena);
+  //BVHInit(&World->BVHRoot, World->Surfaces, 0, World->SurfaceCount, 0.0, 1.0, &World->Arena);
   return;
 }
 void SceneTwoSpheres(world *World, camera *Camera, f64 AspectRatio)
@@ -65,7 +65,7 @@ void SceneTwoSpheres(world *World, camera *Camera, f64 AspectRatio)
   Sphere[1] = SurfaceSphereInit(CenterB, -10.0, MA);
   WorldSurfaceAdd(World, SurfaceKind_Sphere, &Sphere[0]);
   WorldSurfaceAdd(World, SurfaceKind_Sphere, &Sphere[1]);
-  BVHInit(&World->BVHRoot, World->Surfaces, 0, World->SurfaceCount, 0.0, 1.0, &World->Arena);
+  //BVHInit(&World->BVHRoot, World->Surfaces, 0, World->SurfaceCount, 0.0, 1.0, &World->Arena);
   return;
 }
 void SceneTwoPerlinSpheres(world *World, camera *Camera, f64 AspectRatio)
@@ -94,7 +94,7 @@ void SceneTwoPerlinSpheres(world *World, camera *Camera, f64 AspectRatio)
   Sphere[1] = SurfaceSphereInit(CenterB, 2.0, MA);
   WorldSurfaceAdd(World, SurfaceKind_Sphere, &Sphere[0]);
   WorldSurfaceAdd(World, SurfaceKind_Sphere, &Sphere[1]);
-  BVHInit(&World->BVHRoot, World->Surfaces, 0, World->SurfaceCount, 0.0, 1.0, &World->Arena);
+  //BVHInit(&World->BVHRoot, World->Surfaces, 0, World->SurfaceCount, 0.0, 1.0, &World->Arena);
   return;
 }
 void SceneEarthSolo(world *World, camera *Camera, f64 AspectRatio)
@@ -116,7 +116,7 @@ void SceneEarthSolo(world *World, camera *Camera, f64 AspectRatio)
   sphere Sphere = SurfaceSphereInit(V3f64(0,0,0), 2.0, MA);
   WorldSurfaceAdd(World, SurfaceKind_Sphere, &Sphere);
   
-  BVHInit(&World->BVHRoot, World->Surfaces, 0, World->SurfaceCount, 0.0, 1.0, &World->Arena);
+  //BVHInit(&World->BVHRoot, World->Surfaces, 0, World->SurfaceCount, 0.0, 1.0, &World->Arena);
   return;
 }
 void SceneSimpleLight(world *World, camera *Camera, f64 AspectRatio)
@@ -147,7 +147,7 @@ void SceneSimpleLight(world *World, camera *Camera, f64 AspectRatio)
   rect RA = SurfaceRectXYInit(3.0,5.0,1.0,3.0,-2.0, ML);
   WorldSurfaceAdd(World, SurfaceKind_RectXY, &RA);
   
-  BVHInit(&World->BVHRoot, World->Surfaces, 0, World->SurfaceCount, 0.0, 1.0, &World->Arena);
+  //BVHInit(&World->BVHRoot, World->Surfaces, 0, World->SurfaceCount, 0.0, 1.0, &World->Arena);
   return;
 }
 void SceneRandom(world *World, camera *Camera, f64 AspectRatio)
@@ -225,7 +225,7 @@ void SceneRandom(world *World, camera *Camera, f64 AspectRatio)
   WorldSurfaceAdd(World, SurfaceKind_Sphere, &Sphere[1]);
   WorldSurfaceAdd(World, SurfaceKind_Sphere, &Sphere[2]);
   
-  BVHInit(&World->BVHRoot, World->Surfaces, 0, World->SurfaceCount, 0.0, 1.0, &World->Arena);
+  //BVHInit(&World->BVHRoot, World->Surfaces, 0, World->SurfaceCount, 0.0, 1.0, &World->Arena);
   return;
 }
 void SceneCornellBox(world *World, camera *Camera, f64 AspectRatio)
@@ -236,9 +236,9 @@ void SceneCornellBox(world *World, camera *Camera, f64 AspectRatio)
   v3f64 LookFrom = V3f64(278.0,278.0,-800.0);
   v3f64 LookAt   = V3f64(278.0,278.0,0.0);
   v3f64 RelUp    = V3f64(0.0,1.0,0.0);
-  f64   DistToFocus = 20.0;
+  f64   DistToFocus = 150.0;
   f64   FOV = 40.0;
-  f64   Aperture = 1.0;
+  f64   Aperture = 0.08;
   WriteToRef(Camera, CameraInit(LookFrom, LookAt, RelUp, FOV, AspectRatio, Aperture, DistToFocus, 0.0, 1.0));
   
   u32 TR = WorldTextureAdd(World, TextureKind_SolidColor, V3f64(0.65,0.05,0.05), 0,0,0,0,NULL);
@@ -249,23 +249,30 @@ void SceneCornellBox(world *World, camera *Camera, f64 AspectRatio)
   u32 MW = WorldMaterialAdd(World, MaterialKind_Lambert, TW,0.0,0.0);
   u32 MG = WorldMaterialAdd(World, MaterialKind_Lambert, TG,0.0,0.0);
   u32 ML = WorldMaterialAdd(World, MaterialKind_DiffuseLight, TL,0.0,0.0);
-  
-  rect RYZL = SurfaceRectYZInit(0.0,555.0,0.0,555.0, 555.0, MG);
-  rect RYZR = SurfaceRectYZInit(0.0,555.0,0.0,555.0, 0.0, MR);
+  rect RYZL = SurfaceRectYZInit(0.0,555.0,
+                                0.0,555.0, 555.0, MG);
+  rect RYZR = SurfaceRectYZInit(0.0,555.0,
+                                0.0,555.0, 0.0, MR);
   WorldSurfaceAdd(World, SurfaceKind_RectYZ, &RYZL);
   WorldSurfaceAdd(World, SurfaceKind_RectYZ, &RYZR);
   
-  rect RXZLight = SurfaceRectXZInit(213.0,343.0,227.0,332.0, 554.0, ML);
-  rect RXZT = SurfaceRectXZInit(0.0,555.0,0.0,555.0, 555.0, MW);
-  rect RXZB = SurfaceRectXZInit(0.0,555.0,0.0,555.0, 0.0, MW);
+  rect RXZLight = SurfaceRectXZInit(213.0,343.0,   227.0,332.0,   554.0,    ML);
+  rect RXZT     = SurfaceRectXZInit(0.0,555.0,     0.0,555.0,     555.0,    MW);
+  rect RXZB     = SurfaceRectXZInit(0.0,555.0,     0.0,555.0,     0.0  ,    MW);
   WorldSurfaceAdd(World, SurfaceKind_RectXZ, &RXZLight);
   WorldSurfaceAdd(World, SurfaceKind_RectXZ, &RXZT);
   WorldSurfaceAdd(World, SurfaceKind_RectXZ, &RXZB);
   
-  rect RXYF = SurfaceRectXYInit(0.0,555.0,0.0,555.0, 555.0, MW);
+  rect RXYF = SurfaceRectXYInit(0.0,555.0,  0.0,555.0,  555.0, MW);
   WorldSurfaceAdd(World, SurfaceKind_RectXY, &RXYF);
   
-  BVHInit(&World->BVHRoot, World->Surfaces, 0, World->SurfaceCount, 0.0, 1.0, &World->Arena);
+  box BB = SurfaceBoxInit(V3f64(130.0, 0.0, 65.0), V3f64(295.0, 165.0, 230.0), MW);
+  box BS = SurfaceBoxInit(V3f64(265.0, 0.0, 295.0), V3f64(430.0, 330.0, 330.0), MW);
+  WorldSurfaceAdd(World, SurfaceKind_Box, &BB);
+  WorldSurfaceAdd(World, SurfaceKind_Box, &BS);
+  
+  WorldBVHRootListInit(World, 1);
+  BVHInit(&World->BVHRoots[0], World->Surfaces, 0, World->SurfaceCount, 0.0, 1.0, &World->Arena);
   return;
 }
 #endif //RTSCENES_H

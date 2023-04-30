@@ -75,15 +75,10 @@ int main(void)
   OSEntropyInit();
   RandSetSeed();
   
-  // IMAGE
-  //TODO: The image resolution, the sample per pixel, and depth some how effect the viasabilty
-  //      of axis-aligned rects of the cornell box. Figure out how these params effect the visablity.
-  //      Verify the bvh aabbs and the storage using different parameters. List out the params and the 
-  //      output and write out the observations.
   f64 AspectRatio = 1.0;//16.0/9.0;
-  s32 ImageWidth  = 500;
+  s32 ImageWidth  = 1000;
   s32 ImageHeight = (int)(ImageWidth/AspectRatio);
-  s32 SamplesPerPixel = 200;
+  s32 SamplesPerPixel = 400;
   s32 MaxDepth = 50;
   
   // WORLD
@@ -101,8 +96,8 @@ int main(void)
   SceneCornellBox(&World, &Camera, AspectRatio);
   
   // WORK
-  u32 CoreCount = OSGetCoreCount(); //TODO: deduce the actual core count.
   u8 *ImageBuffer = OSMemoryAlloc(sizeof(u32)*ImageWidth*ImageHeight);
+  u32 CoreCount   = OSGetCoreCount(); //TODO: deduce the actual core count.
   work_queue WorkQueue = WorkQueueInit(TileFmt_uint_R8G8B8A8,
                                        ImageBuffer, ImageWidth, ImageHeight,
                                        &World, MaxDepth,

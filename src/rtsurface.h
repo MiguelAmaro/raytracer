@@ -10,10 +10,12 @@ enum surface_kind
 {
   SurfaceKind_Sphere,
   SurfaceKind_SphereMoving,
-  SurfaceKind_Plane,
+  //SurfaceKind_Plane,
   SurfaceKind_RectXY,
   SurfaceKind_RectXZ,
   SurfaceKind_RectYZ,
+  SurfaceKind_Box,
+  SurfaceKind_TransformedInst,
   SurfaceKind_BVHNode,
 };
 typedef enum material_kind material_kind;
@@ -24,6 +26,7 @@ enum material_kind
   MaterialKind_Dielectric,
   MaterialKind_DiffuseLight,
 };
+typedef struct surface surface;
 typedef struct plane plane;
 struct plane
 {
@@ -55,7 +58,33 @@ struct sphere_moving
   f64   Radius;
   u32   MatId;
 };
-typedef struct surface surface;
+typedef struct box box;
+struct box
+{
+  v3f64 min;
+  v3f64 max;
+  u32 MatId;
+  surface *SidesList;
+};
+typedef enum transform_kind transform_kind;
+enum transform_kind
+{
+  TransformKind_Translate = (1<<0),
+  TransformKind_RotateY   = (1<<1),
+};
+typedef struct transformed_inst transformed_inst;
+struct transformed_inst
+{
+  transform_kind Kind;
+  surface *Instance;
+  // translation
+  v3f64 Offset;
+  // y rotation
+  f64 CosTheta;
+  f64 SinTheta;
+  b32 HasBox;
+  r3f64 AABB; 
+};
 typedef struct bvh_node bvh_node;
 struct bvh_node
 {
@@ -67,10 +96,12 @@ struct surface
 {
   surface_kind Kind;
   union {
-    sphere Sphere;
-    plane  Plane;
+    sphere        Sphere;
+    plane         Plane;
     sphere_moving SphereMoving;
-    rect Rect;
+    rect          Rect;
+    box           Box;
+    transformed_inst TransformedInst;
     //special
     bvh_node BvhNode;
   };
@@ -98,5 +129,6 @@ struct hit
 b32   MaterialScatter(material *Material, texture *Texture, ray Ray, hit Hit, v3f64 *Atten, ray *Scattered);
 v3f64 MaterialEmmited(material *Material, texture *Texture, f64 u, f64 v, v3f64 Pos);
 v3f64 SphereMovingGetPos(sphere_moving *SphereMoving, f64 Time);
+b32   SurfaceListHit(surface *Surfaces, u32 SurfaceCount, hit *Hit, ray Ray, f64 Mint, f64 Maxt);
 b32   SurfaceHit(surface *Surface, hit *Hit, ray Ray, f64 Mint, f64 Maxt);
 #endif //RTSURFACE_H

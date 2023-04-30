@@ -1,6 +1,9 @@
 //surfaces
 inline b32 WorldSurfaceStackEmpty         (world *World) { return (World->SurfaceNext == World->Surfaces); }
 inline b32 WorldSurfaceStackFull          (world *World) { return (World->SurfaceNext == World->SurfaceOnePastLast); }
+//surfaces (hackk!!!)
+inline b32 WorldSurfacesStaticStackEmpty         (world *World) { return (World->SurfaceStaticNext == World->SurfacesStatic); }
+inline b32 WorldSurfacesStaticStackFull          (world *World) { return (World->SurfaceStaticNext == World->SurfaceStaticOnePastLast); }
 //materials
 inline b32 WorldMaterialStackEmpty      (world *World) { return (World->MaterialNext == World->Materials); }
 inline b32 WorldMaterialStackFull       (world *World) { return (World->MaterialNext == World->MaterialOnePastLast); }
@@ -19,6 +22,10 @@ void WorldInit(world *World, v3f64 Background)
   World->SurfaceCount       = 0;
   World->SurfaceNext        = World->Surfaces;
   World->SurfaceOnePastLast = World->Surfaces+WORLD_STACK_MAXCOUNT;
+  //surface (hack!!!)
+  World->SurfaceStaticCount       = 0;
+  World->SurfaceStaticNext        = World->SurfacesStatic;
+  World->SurfaceStaticOnePastLast = World->SurfacesStatic+WORLD_STACK_MAXCOUNT;
   //materials
   World->MaterialCount       = 0;
   World->MaterialNext        = World->Materials;
@@ -37,6 +44,12 @@ void WorldInit(world *World, v3f64 Background)
   World->DefaultNoiseId = WorldNoiseAdd(World, NoiseKind_Perin);
   World->DefaultTexId = WorldTextureAdd(World, TextureKind_SolidColor, V3f64(1.0, 0.0, 1.0),0,0,0,0,NULL); //default texture
   World->DefaultMatId = WorldMaterialAdd(World, MaterialKind_Lambert, World->DefaultTexId, 0.0, 0.0); //default material
+  return;
+}
+void WorldBVHRootListInit(world *World, u32 RootCount)
+{
+  World->BVHRoots = ArenaPushArray(&World->Arena, RootCount, surface);
+  World->BVHRootCount = RootCount;
   return;
 }
 
@@ -65,12 +78,92 @@ void WorldSurfaceAdd(world *World, surface_kind Kind, void *SurfaceData)
     case SurfaceKind_RectYZ: {
       NewSurface.Rect = ObjCopyFromRef(rect, SurfaceData);
     } break;
+    case SurfaceKind_Box: {
+      if(WorldSurfacesStaticStackFull(World)) { return; }
+      NewSurface.Box = ObjCopyFromRef(box, SurfaceData);
+      v3f64 min   = NewSurface.Box.min;
+      v3f64 max   = NewSurface.Box.max;
+      u32   MatId = NewSurface.Box.MatId;
+      rect Sides[6] = {0};
+      Sides[0] = SurfaceRectXYInit(min.x, max.x,   min.y, max.y,   max.z,  MatId);
+      Sides[1] = SurfaceRectXYInit(min.x, max.x,   min.y, max.y,   min.z,  MatId);
+      Sides[2] = SurfaceRectXZInit(min.x, max.x,   min.z, max.z,   max.y,  MatId);
+      Sides[3] = SurfaceRectXZInit(min.x, max.x,   min.z, max.z,   min.y,  MatId);
+      Sides[4] = SurfaceRectYZInit(min.y, max.y,   min.z, max.z,   max.x,  MatId);
+      Sides[5] = SurfaceRectYZInit(min.y, max.y,   min.z, max.z,   min.x,  MatId);
+      NewSurface.Box.SidesList = World->SurfaceStaticNext;
+      WorldSurfaceStaticAdd(World, SurfaceKind_RectXY, &Sides[0]);
+      WorldSurfaceStaticAdd(World, SurfaceKind_RectXY, &Sides[1]);
+      WorldSurfaceStaticAdd(World, SurfaceKind_RectXZ, &Sides[2]);
+      WorldSurfaceStaticAdd(World, SurfaceKind_RectXZ, &Sides[3]);
+      WorldSurfaceStaticAdd(World, SurfaceKind_RectYZ, &Sides[4]);
+      WorldSurfaceStaticAdd(World, SurfaceKind_RectYZ, &Sides[5]);
+    }break;
+    case SurfaceKind_TransformedInst: {
+      NewSurface.TransformedInst = ObjCopyFromRef(transformed_inst, SurfaceData);
+    }break;
     case SurfaceKind_BVHNode: { Assert(!"Invalid Codepath"); } break;
   }
   WriteToRef(World->SurfaceNext, NewSurface);
   World->SurfaceNext++;
   World->SurfaceCount++;
   return;
+}
+surface *WorldSurfaceStaticAdd(world *World, surface_kind Kind, void *SurfaceData)
+{
+  if(WorldSurfacesStaticStackFull(World)) { return NULL; }
+  surface *Result = NULL;
+  surface NewSurface = { .Kind = Kind };
+  switch(Kind)
+  {
+    case SurfaceKind_Sphere: {
+      NewSurface.Sphere = ObjCopyFromRef(sphere, SurfaceData);
+    } break;
+    case SurfaceKind_SphereMoving: {
+      NewSurface.SphereMoving = ObjCopyFromRef(sphere_moving, SurfaceData);
+    } break;
+    case SurfaceKind_Plane: {
+      NewSurface.Plane = ObjCopyFromRef(plane, SurfaceData);
+    } break;
+    case SurfaceKind_RectXY: {
+      NewSurface.Rect = ObjCopyFromRef(rect, SurfaceData);
+    } break;
+    case SurfaceKind_RectXZ: {
+      NewSurface.Rect = ObjCopyFromRef(rect, SurfaceData);
+    } break;
+    case SurfaceKind_RectYZ: {
+      NewSurface.Rect = ObjCopyFromRef(rect, SurfaceData);
+    } break;
+    case SurfaceKind_Box: {
+      NewSurface.Box = ObjCopyFromRef(box, SurfaceData);
+      v3f64 min   = NewSurface.Box.min;
+      v3f64 max   = NewSurface.Box.max;
+      u32   MatId = NewSurface.Box.MatId;
+      rect Sides[6] = {0};
+      Sides[0] = SurfaceRectXYInit(min.x, max.x,   min.y, max.y,   max.z,  MatId);
+      Sides[1] = SurfaceRectXYInit(min.x, max.x,   min.y, max.y,   min.z,  MatId);
+      Sides[2] = SurfaceRectXZInit(min.x, max.x,   min.z, max.z,   max.y,  MatId);
+      Sides[3] = SurfaceRectXZInit(min.x, max.x,   min.z, max.z,   min.y,  MatId);
+      Sides[4] = SurfaceRectYZInit(min.y, max.y,   min.z, max.z,   max.x,  MatId);
+      Sides[5] = SurfaceRectYZInit(min.y, max.y,   min.z, max.z,   min.x,  MatId);
+      NewSurface.Box.SidesList = World->SurfaceStaticNext;
+      WorldSurfaceStaticAdd(World, SurfaceKind_RectXY, &Sides[0]);
+      WorldSurfaceStaticAdd(World, SurfaceKind_RectXY, &Sides[1]);
+      WorldSurfaceStaticAdd(World, SurfaceKind_RectXZ, &Sides[2]);
+      WorldSurfaceStaticAdd(World, SurfaceKind_RectXZ, &Sides[3]);
+      WorldSurfaceStaticAdd(World, SurfaceKind_RectYZ, &Sides[4]);
+      WorldSurfaceStaticAdd(World, SurfaceKind_RectYZ, &Sides[5]);
+    }break;
+    case SurfaceKind_TransformedInst: {
+      NewSurface.TransformedInst = ObjCopyFromRef(transformed_inst, SurfaceData);
+    }break;
+    case SurfaceKind_BVHNode: { Assert(!"Invalid Codepath"); } break;
+  }
+  WriteToRef(World->SurfaceStaticNext, NewSurface);
+  Result = World->SurfaceStaticNext;
+  World->SurfaceStaticNext++;
+  World->SurfaceStaticCount++;
+  return Result;
 }
 u32 WorldTextureAdd(world *World, texture_kind Kind,
                     v3f64 Color,
@@ -176,34 +269,10 @@ noise *WorldNoiseGetFromId(world *World, u32 NoiseId)
 }
 
 //~ WORLD TRAVERSAL
-b32 WorldHit(world *World, hit *Hit, ray Ray, f64 Mint, f64 Maxt)
+b32 WorldHit(world *World, hit *Hit, ray Ray, f64 Mint, f64 Maxt, b32 UseBVH)
 {
-  b32 SurfaceWasHit = 0;
-  f64 ClosestHit = Maxt;
-  hit TempHit = {0};
-  
-  for(surface *Surface=World->Surfaces; Surface!=World->SurfaceNext; Surface++)
-  {
-    if(SurfaceHit(Surface, &TempHit, Ray, Mint, ClosestHit))
-    {
-      SurfaceWasHit = 1;
-      ClosestHit = TempHit.t;
-      WriteToRef(Hit, TempHit);
-    }
-  }
-  return SurfaceWasHit;
-}
-b32 WorldHitBVH(world *World, hit *Hit, ray Ray, f64 Mint, f64 Maxt)
-{
-  b32 SurfaceWasHit = 0;
-  f64 ClosestHit = Maxt;
-  hit TempHit = {0};
-  
-  if(SurfaceHit(&World->BVHRoot, &TempHit, Ray, Mint, ClosestHit))
-  {
-    SurfaceWasHit = 1;
-    ClosestHit = TempHit.t;
-    WriteToRef(Hit, TempHit);
-  }
-  return SurfaceWasHit;
+  b32 Result = (UseBVH?
+                SurfaceBVHListHit(World->BVHRoots, World->BVHRootCount, Hit, Ray, Mint, Maxt):
+                SurfaceListHit   (World->Surfaces, World->SurfaceCount, Hit, Ray, Mint, Maxt));
+  return Result;
 }

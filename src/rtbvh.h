@@ -30,29 +30,23 @@ b32 AABBInitBVHNode(bvh_node *BvhNode, aabb *Output)
 b32 AABBInitRectXY(rect *Rect, aabb *Output)
 {
   r3f64 p = Rect->Points;
-  aabb Result = AABBInit(V3f64(p.x0,p.y0,Rect->Offset+0.0001), V3f64(p.x1,p.y1,Rect->Offset+0.0001));
+  aabb Result = AABBInit(V3f64(p.x0,p.y0,Rect->Offset-0.0001), V3f64(p.x1,p.y1,Rect->Offset+0.0001));
   WriteToRef(Output, Result);
   return AABB_ISBOUNDABLE;
 }
 b32 AABBInitRectXZ(rect *Rect, aabb *Output)
 {
   r3f64 p = Rect->Points;
-  aabb Result = AABBInit(V3f64(p.x0,Rect->Offset+0.0001,p.z0), V3f64(p.x1,Rect->Offset+0.0001,p.z1));
+  aabb Result = AABBInit(V3f64(p.x0,Rect->Offset-0.0001,p.z0), V3f64(p.x1,Rect->Offset+0.0001,p.z1));
   WriteToRef(Output, Result);
   return AABB_ISBOUNDABLE;
 }
 b32 AABBInitRectYZ(rect *Rect, aabb *Output)
 {
   r3f64 p = Rect->Points;
-  aabb Result = AABBInit(V3f64(Rect->Offset+0.0001,p.y0,p.z0), V3f64(Rect->Offset+0.0001,p.y1,p.z1));
+  aabb Result = AABBInit(V3f64(Rect->Offset-0.0001,p.y0,p.z0), V3f64(Rect->Offset+0.0001,p.y1,p.z1));
   WriteToRef(Output, Result);
   return AABB_ISBOUNDABLE;
-}
-b32 AABBInitPlane(aabb *Output)
-{
-  aabb Result = {0}; //make sure is cleared
-  WriteToRef(Output, Result);
-  return AABB_ISNOTBOUNDABLE;
 }
 b32 AABBInitSphere(sphere *Sphere, aabb *Output)
 {
@@ -70,33 +64,40 @@ b32 AABBInitSphereMoving(sphere_moving *Sphere, f64 Time0, f64 Time1, aabb *Outp
   WriteToRef(Output, AABBInitContainer(Result0, Result1));
   return AABB_ISBOUNDABLE;
 }
+b32 AABBInitBox(box *Box, aabb *Output)
+{
+  aabb Result = { .min = Box->min, .max = Box->max };
+  WriteToRef(Output, Result);
+  return AABB_ISNOTBOUNDABLE;
+}
 b32 AABBInitSurface(surface *Surface, f64 Time0, f64 Time1, aabb *Output)
 {
+  b32 Result = AABB_ISNOTBOUNDABLE;
   switch(Surface->Kind)
   {
     case SurfaceKind_Sphere: {
-      AABBInitSphere(&Surface->Sphere, Output);
+      Result = AABBInitSphere(&Surface->Sphere, Output);
     }break;
     case SurfaceKind_SphereMoving: {
-      AABBInitSphereMoving(&Surface->SphereMoving, Time0, Time1, Output);
-    }break;
-    case SurfaceKind_Plane: {
-      AABBInitPlane(Output); //NOTE: caller probably doesnt handle unbounable surfaces
+      Result = AABBInitSphereMoving(&Surface->SphereMoving, Time0, Time1, Output);
     }break;
     case SurfaceKind_RectXY: {
-      AABBInitRectXY(&Surface->Rect, Output);
+      Result = AABBInitRectXY(&Surface->Rect, Output);
     }break;
     case SurfaceKind_RectXZ: {
-      AABBInitRectXZ(&Surface->Rect, Output);
+      Result = AABBInitRectXZ(&Surface->Rect, Output);
     }break;
     case SurfaceKind_RectYZ: {
-      AABBInitRectYZ(&Surface->Rect, Output);
+      Result = AABBInitRectYZ(&Surface->Rect, Output);
+    }break;
+    case SurfaceKind_Box: {
+      Result = AABBInitBox(&Surface->Box, Output);
     }break;
     case SurfaceKind_BVHNode: {
-      AABBInitBVHNode(&Surface->BvhNode, Output);
+      Result = AABBInitBVHNode(&Surface->BvhNode, Output);
     }break;
   }
-  return 1;
+  return Result;
 }
 // NOTE(MIGUEL): In the tut the bvh is expressed in terms of a hierarchical class called hittable
 //               one of the sub classes of hittable is the bvh node and it is the only one that has
@@ -113,8 +114,8 @@ int AabbComp(const void *a, const void *b, u32 axis)
   const surface *sa = a; const surface *sb = b;
   aabb Aabb_a = {0};
   aabb Aabb_b = {0};
-  if(!AABBInitBVHNode(&sa->BvhNode, &Aabb_a) ||
-     !AABBInitBVHNode(&sb->BvhNode, &Aabb_b))
+  if(!AABBInitSurface(sa, 0, 0, &Aabb_a) ||
+     !AABBInitSurface(sb, 0, 0, &Aabb_b))
   {
     fprintf(stderr, "error no bounding box bvh node");
   }
@@ -129,7 +130,7 @@ void BVHInit(surface *BvhSurface, surface *SurfaceList, u64 Start, u64 End, f64 
   BvhSurface->Kind = SurfaceKind_BVHNode;
   bvh_node *BvhNode = &BvhSurface->BvhNode; 
   surface *List = SurfaceList;
-  u32 Axis = RandInt(0, 2);
+  u32 Axis = RandInt(0, 3);
   aabb_comparator *Comparator = ((Axis == 0)?AabbXComp:
                                  (Axis == 1)?AabbYComp: AabbZComp);
   u64 Span = End-Start;
@@ -159,8 +160,8 @@ void BVHInit(surface *BvhSurface, surface *SurfaceList, u64 Start, u64 End, f64 
     
     BvhNode->Left  = ArenaPushType(Arena, surface);
     BvhNode->Right = ArenaPushType(Arena, surface);
-    BVHInit(BvhNode->Left, List, Start, Mid, Time0, Time1, Arena);
-    BVHInit(BvhNode->Right, List, Mid, End, Time0, Time1, Arena);
+    BVHInit(BvhNode->Left , List, Start, Mid, Time0, Time1, Arena);
+    BVHInit(BvhNode->Right, List, Mid  , End, Time0, Time1, Arena);
   }
   aabb BoxLeft  = {0};
   aabb BoxRight = {0};
