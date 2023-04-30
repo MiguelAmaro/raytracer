@@ -52,11 +52,6 @@ f64 RandF64Uni(void)
   f64 r = pcg64_nextd(&GlobalRNG);
   return r;
 }
-f64 RandF64Bi(void)
-{
-  f64 r = 2.0f*RandF64Uni() - 1.0f;
-  return r;
-}
 f64 RandF64Range(f64 low, f64 high)
 {
   Assert(low<=high);
@@ -65,7 +60,11 @@ f64 RandF64Range(f64 low, f64 high)
   f64 r = low + d*t;
   return r;
 }
-
+f64 RandF64Bi(void)
+{
+  f64 r = RandF64Range(-1.0,1.0);
+  return r;
+}
 // SCALAR
 f64 SquareRoot_f64(f64 a)
 {
@@ -216,5 +215,15 @@ union r3f64
   struct { f64 x0; f64 y0; f64 z0; f64 x1; f64 y1; f64 z1; };
   f64 e[6];
 };
+#define R3f64(...) _Generic(ARG1(__VA_ARGS__), f64: R3f64_6f64)(__VA_ARGS__)
+r3f64 R3f64_6f64(f64 x0, f64 y0, f64 z0, f64 x1, f64 y1, f64 z1)
+{
+  r3f64 r = { 
+    .x0 = x0, .x1 = x1,
+    .y0 = y0, .y1 = y1,
+    .z0 = z0, .z1 = z1
+  };
+  return r;
+}
 
 #endif //RTMATH_H

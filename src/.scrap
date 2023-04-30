@@ -182,3 +182,9 @@ void WorldSphereMovingAdd(world *World, v3f64 Pos0, v3f64 Pos1, f64 Time0, f64 T
   sphere_moving   *SphereMovingNext;   sphere_moving   *SphereMovingOnePastLast;
   
   // stack mgmt
+
+
+  //v3f64 UnitDir = Normalize(Ray.Dir);
+  //f64 t = 0.5*(UnitDir.y+1.0);
+  //v3f64 r = Lerp(V3f64(1,1,1), V3f64(0.5,0.7,1.0), t);
+  

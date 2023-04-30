@@ -5,7 +5,7 @@
 #define Assert(expression) if(!(expression)){ __debugbreak(); } while (0)
 #define ArrayCount(array) sizeof(array)/sizeof(array[0])
 #define WriteToRef(refptr, obj) (*refptr = obj)
-#define RefToInst(type, ptr) (*((type *)ptr))
+#define ObjCopyFromRef(type, ptr) (*((type *)ptr))
 
 #define Kilobytes(size) (         (size) * 1024LL)
 #define Megabytes(size) (Kilobytes(size) * 1024LL)

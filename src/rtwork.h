@@ -40,6 +40,10 @@ struct work_queue
   u32 TileCountX;
   u32 TileCountY;
   u32 TileTotalCount;
+  u32 ThreadCount;
+  
+  u64 BeginSignal;
+  u64 ThreadHandles[64];
 };
 
 work_order WorkOrderInit(u8 *ImageBuffer, u32 ImageWidth, u32 ImageHeight,
@@ -63,9 +67,18 @@ work_order WorkOrderInit(u8 *ImageBuffer, u32 ImageWidth, u32 ImageHeight,
   };
   return Result;
 }
+b32 RenderTile(work_queue *Queue);
+DWORD WorkProcRenderTiles(void *Param)
+{
+  work_queue *Queue = (work_queue *)Param;
+  WaitForSingleObject((HANDLE)Queue->BeginSignal, INFINITE); 
+  while(RenderTile(Queue)) {};
+  fprintf(stderr, "exiting thread[%5lu]\n",GetCurrentThreadId());
+  return 0;
+}
 work_queue WorkQueueInit(tile_fmt TileFormat, u8 *ImageBuffer, u32 ImageWidth, u32 ImageHeight, world *World, u32 MaxDepth, camera *Camera, u32 SamplesPerPixel, u32 CoreCount)
 {
-  u32 TileWidth  = ImageWidth/CoreCount;
+  u32 TileWidth  = ImageWidth/(CoreCount*2);
   u32 TileHeight = TileWidth;
   u32 TileCountX = ((ImageWidth  + TileWidth ) - 1)/(TileWidth);
   u32 TileCountY = ((ImageHeight + TileHeight) - 1)/(TileHeight);
@@ -75,10 +88,11 @@ work_queue WorkQueueInit(tile_fmt TileFormat, u8 *ImageBuffer, u32 ImageWidth, u
     .WorkOrderCount = 0,
     .TileFormat = TileFormat,
     .TileWidth  = TileWidth,
-    .TileHeight = ImageHeight,
+    .TileHeight = TileHeight,
     .TileCountX = TileCountX,
     .TileCountY = TileCountY,
     .TileTotalCount = TileTotalCount,
+    .ThreadCount = CoreCount,
   };
   Assert(TileFormat==TileFmt_uint_R8G8B8A8 && "Must learn table generation");
   
@@ -89,7 +103,7 @@ work_queue WorkQueueInit(tile_fmt TileFormat, u8 *ImageBuffer, u32 ImageWidth, u
     for(u32 TileX=0; TileX<TileCountX; TileX++)
     {
       u32 MinX         = TileX*TileWidth;
-      u32 OnePastLastX = Min(MinX+TileHeight, ImageWidth);
+      u32 OnePastLastX = Min(MinX+TileWidth, ImageWidth);
       work_order *Order = &Result.WorkOrders[Result.WorkOrderCount++];
       work_order NewOrder = WorkOrderInit(ImageBuffer, ImageWidth, ImageHeight,
                                           World, MaxDepth, MinX, MinY,
@@ -98,8 +112,29 @@ work_queue WorkQueueInit(tile_fmt TileFormat, u8 *ImageBuffer, u32 ImageWidth, u
       WriteToRef(Order, NewOrder);
     }
   }
-  
   return Result;
 }
-
+void WorkQueueLaunchThreads(work_queue *WorkQueue)
+{
+  WorkQueue->BeginSignal = (u64)CreateEvent(NULL, TRUE, FALSE, TEXT("WorkQueue Begin Signal"));
+  for(u32 ThreadIdx=0; ThreadIdx<WorkQueue->ThreadCount; ThreadIdx++)
+  {
+    u64 ThreadHandle = OSThreadCreate(WorkQueue, WorkProcRenderTiles);
+    fprintf(stderr, "thread launched... id:%lu\n", GetThreadId((HANDLE)ThreadHandle));
+    WorkQueue->ThreadHandles[ThreadIdx] = ThreadHandle;
+  }
+  return;
+}
+void WorkQueueBeginWork(work_queue *WorkQueue)
+{
+  if(SetEvent((HANDLE)WorkQueue->BeginSignal))
+  {
+    fprintf(stderr, "work begin signal set.\n");
+  }
+  else 
+  { 
+    fprintf(stderr, "Error setting work queue begin signal.\n");
+  }
+  return;
+}
 #endif //RTWORK_H

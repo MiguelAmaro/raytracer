@@ -11,7 +11,7 @@ inline b32 WorldTextureStackFull       (world *World) { return (World->TextureNe
 inline b32 WorldNoiseStackEmpty      (world *World) { return (World->NoiseNext == World->Noises); }
 inline b32 WorldNoiseStackFull       (world *World) { return (World->NoiseNext == World->NoiseOnePastLast); }
 
-void WorldInit(world *World)
+void WorldInit(world *World, v3f64 Background)
 {
   world EmptyWorld = {0}; WriteToRef(World, EmptyWorld);
   World->Arena = ArenaInit(NULL, Gigabytes(2), OSMemoryAlloc(Gigabytes(2)));
@@ -33,6 +33,7 @@ void WorldInit(world *World)
   World->NoiseOnePastLast = World->Noises+WORLD_STACK_NOISE_MAXCOUNT;
   
   //defaults
+  World->DefaultBackground = Background;
   World->DefaultNoiseId = WorldNoiseAdd(World, NoiseKind_Perin);
   World->DefaultTexId = WorldTextureAdd(World, TextureKind_SolidColor, V3f64(1.0, 0.0, 1.0),0,0,0,0,NULL); //default texture
   World->DefaultMatId = WorldMaterialAdd(World, MaterialKind_Lambert, World->DefaultTexId, 0.0, 0.0); //default material
@@ -47,13 +48,22 @@ void WorldSurfaceAdd(world *World, surface_kind Kind, void *SurfaceData)
   switch(Kind)
   {
     case SurfaceKind_Sphere: {
-      NewSurface.Sphere = RefToInst(sphere, SurfaceData);
+      NewSurface.Sphere = ObjCopyFromRef(sphere, SurfaceData);
     } break;
     case SurfaceKind_SphereMoving: {
-      NewSurface.SphereMoving = RefToInst(sphere_moving, SurfaceData);
+      NewSurface.SphereMoving = ObjCopyFromRef(sphere_moving, SurfaceData);
     } break;
     case SurfaceKind_Plane: {
-      NewSurface.Plane = RefToInst(plane, SurfaceData);
+      NewSurface.Plane = ObjCopyFromRef(plane, SurfaceData);
+    } break;
+    case SurfaceKind_RectXY: {
+      NewSurface.Rect = ObjCopyFromRef(rect, SurfaceData);
+    } break;
+    case SurfaceKind_RectXZ: {
+      NewSurface.Rect = ObjCopyFromRef(rect, SurfaceData);
+    } break;
+    case SurfaceKind_RectYZ: {
+      NewSurface.Rect = ObjCopyFromRef(rect, SurfaceData);
     } break;
     case SurfaceKind_BVHNode: { Assert(!"Invalid Codepath"); } break;
   }
@@ -64,7 +74,7 @@ void WorldSurfaceAdd(world *World, surface_kind Kind, void *SurfaceData)
 }
 u32 WorldTextureAdd(world *World, texture_kind Kind,
                     v3f64 Color,
-                    u32 TexIdA, u32 TexIdB,
+                    u32 CheckerTexIdA, u32 CheckerTexIdB,
                     u32 NoiseId, f64 NoiseScale, const char *Path)
 {
   if(WorldTextureStackFull(World)) { return TEXTURE_INVALID_ID; }
@@ -75,8 +85,8 @@ u32 WorldTextureAdd(world *World, texture_kind Kind,
       NewTex.Color = Color;
     }break;
     case TextureKind_Checker: {
-      NewTex.CheckerTex[0] = WorldTextureGetFromId(World, TexIdA);
-      NewTex.CheckerTex[1] = WorldTextureGetFromId(World, TexIdB);
+      NewTex.CheckerTex[0] = WorldTextureGetFromId(World, CheckerTexIdA);
+      NewTex.CheckerTex[1] = WorldTextureGetFromId(World, CheckerTexIdB);
     }break;
     case TextureKind_Noise: {
       NewTex.Perlin = WorldNoiseGetFromId(World, NoiseId);
@@ -92,22 +102,26 @@ u32 WorldTextureAdd(world *World, texture_kind Kind,
   u32 TexId = (u32)((u64)World->TextureNext-(u64)World->Textures)/sizeof(texture);
   Assert(TexId != TEXTURE_INVALID_ID);
   World->TextureNext++;
+  World->TextureCount++;
   return TexId;
 }
 u32 WorldMaterialAdd(world *World, material_kind Kind, u32 TexId, f64 Fuzziness, f64 IndexOfRefraction)
 {
   if(WorldMaterialStackFull(World)) { return MATERIAL_INVALID_ID; }
+  // NOTE(MIGUEL): these should be assigned via switch so that the expected field values per kind is clear
   material NewMat = { 
     .Kind = Kind,
     .TexId = TexId,
     .Fuzz = Clamp(Fuzziness, 0.0, 1.0),
     .IndexOfRefraction = IndexOfRefraction,
+    //.EmmitColor = EmmitColor,
   };
   WriteToRef(World->MaterialNext, NewMat);
   // NOTE(MIGUEL): This could be an issue with overflow and computiong wrong index
   u32 MatId = (u32)((u64)World->MaterialNext-(u64)World->Materials)/sizeof(material);
   Assert(MatId != MATERIAL_INVALID_ID);
   World->MaterialNext++;
+  World->MaterialCount++;
   return MatId;
 }
 u32 WorldNoiseAdd(world *World, noise_kind Kind)
@@ -125,6 +139,7 @@ u32 WorldNoiseAdd(world *World, noise_kind Kind)
   u32 NoiseId = (u32)((u64)World->NoiseNext-(u64)World->Noises)/sizeof(noise);
   Assert(NoiseId != NOISE_INVALID_ID);
   World->NoiseNext++;
+  World->NoiseCount++;
   return NoiseId;
 }
 

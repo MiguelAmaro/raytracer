@@ -1,12 +1,19 @@
 #ifndef RTSURFACE_H
 #define RTSURFACE_H
 
+#define HIT_DETECTED (1)
+#define HIT_NOTDETECTED (0)
+#define SCATTER_PROCESS (1)
+#define SCATTER_IGNORE  (0)
 typedef enum surface_kind surface_kind;
 enum surface_kind
 {
   SurfaceKind_Sphere,
   SurfaceKind_SphereMoving,
   SurfaceKind_Plane,
+  SurfaceKind_RectXY,
+  SurfaceKind_RectXZ,
+  SurfaceKind_RectYZ,
   SurfaceKind_BVHNode,
 };
 typedef enum material_kind material_kind;
@@ -15,12 +22,20 @@ enum material_kind
   MaterialKind_Lambert,
   MaterialKind_Metal,
   MaterialKind_Dielectric,
+  MaterialKind_DiffuseLight,
 };
 typedef struct plane plane;
 struct plane
 {
   v3f64 Normal;
   f64   Dist;
+  u32   MatId;
+};
+typedef struct rect rect;
+struct rect
+{
+  r3f64 Points;
+  f64   Offset;
   u32   MatId;
 };
 typedef struct sphere sphere;
@@ -55,6 +70,7 @@ struct surface
     sphere Sphere;
     plane  Plane;
     sphere_moving SphereMoving;
+    rect Rect;
     //special
     bvh_node BvhNode;
   };
@@ -64,9 +80,9 @@ struct material
 {
   material_kind Kind;
   u32 TexId;
-  //v3f64 Albedo; 
-  f64   Fuzz;
-  f64   IndexOfRefraction;
+  f64 Fuzz;
+  f64 IndexOfRefraction;
+  //1v3f64 EmmitColor;
 };
 typedef struct hit hit;
 struct hit
@@ -80,5 +96,7 @@ struct hit
   b32  IsFrontFace;
 };
 b32   MaterialScatter(material *Material, texture *Texture, ray Ray, hit Hit, v3f64 *Atten, ray *Scattered);
+v3f64 MaterialEmmited(material *Material, texture *Texture, f64 u, f64 v, v3f64 Pos);
 v3f64 SphereMovingGetPos(sphere_moving *SphereMoving, f64 Time);
+b32   SurfaceHit(surface *Surface, hit *Hit, ray Ray, f64 Mint, f64 Maxt);
 #endif //RTSURFACE_H

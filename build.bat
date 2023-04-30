@@ -12,8 +12,8 @@ rem COMPILER(MSVC) OPTIONS
 rem ============================================================
 set MSVC_SEARCH_DIRS=-I%PROJECT_DIR%\thirdparty\pcg\ -I%PROJECT_DIR%\thirdparty\stb\
 
-set MSVC_WARNINGS=-Wall -wd4668 -wd4711 -wd4710 -wd4820 -wd4090 -wd5045
-set MSVC_FLAGS= %MSVC_WARNINGS% -std:c11 -nologo -Od -Zi
+set MSVC_WARNINGS=-Wall -wd4668 -wd4711 -wd4710 -wd4820 -wd4090 -wd5045 -D_CRT_SECURE_NO_WARNINGS
+set MSVC_FLAGS= %MSVC_WARNINGS% -std:c11 -nologo -O2 -Zi
 rem -Od -Zi
 
 rem LINKER(MSVC) OPTIONS

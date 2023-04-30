@@ -1,6 +1,9 @@
 #ifndef RTBVH_H
 #define RTBVH_H
 
+#define AABB_ISBOUNDABLE (1)
+#define AABB_ISNOTBOUNDABLE (0)
+
 typedef r3f64 aabb;
 
 aabb AABBInit(v3f64 min, v3f64 max)
@@ -22,23 +25,50 @@ aabb AABBInitContainer(aabb a, aabb b)
 b32 AABBInitBVHNode(bvh_node *BvhNode, aabb *Output)
 {
   WriteToRef(Output, BvhNode->AABB);
-  return 1;
+  return AABB_ISBOUNDABLE;
+}
+b32 AABBInitRectXY(rect *Rect, aabb *Output)
+{
+  r3f64 p = Rect->Points;
+  aabb Result = AABBInit(V3f64(p.x0,p.y0,Rect->Offset+0.0001), V3f64(p.x1,p.y1,Rect->Offset+0.0001));
+  WriteToRef(Output, Result);
+  return AABB_ISBOUNDABLE;
+}
+b32 AABBInitRectXZ(rect *Rect, aabb *Output)
+{
+  r3f64 p = Rect->Points;
+  aabb Result = AABBInit(V3f64(p.x0,Rect->Offset+0.0001,p.z0), V3f64(p.x1,Rect->Offset+0.0001,p.z1));
+  WriteToRef(Output, Result);
+  return AABB_ISBOUNDABLE;
+}
+b32 AABBInitRectYZ(rect *Rect, aabb *Output)
+{
+  r3f64 p = Rect->Points;
+  aabb Result = AABBInit(V3f64(Rect->Offset+0.0001,p.y0,p.z0), V3f64(Rect->Offset+0.0001,p.y1,p.z1));
+  WriteToRef(Output, Result);
+  return AABB_ISBOUNDABLE;
+}
+b32 AABBInitPlane(aabb *Output)
+{
+  aabb Result = {0}; //make sure is cleared
+  WriteToRef(Output, Result);
+  return AABB_ISNOTBOUNDABLE;
 }
 b32 AABBInitSphere(sphere *Sphere, aabb *Output)
 {
   aabb Result = AABBInit(Sub(Sphere->Pos, V3f64(Sphere->Radius, Sphere->Radius, Sphere->Radius)),
                          Add(Sphere->Pos, V3f64(Sphere->Radius, Sphere->Radius, Sphere->Radius)));
   WriteToRef(Output, Result);
-  return 1;
+  return AABB_ISBOUNDABLE;
 }
-b32 ABBBInitSphereMoving(sphere_moving *Sphere, f64 Time0, f64 Time1, aabb *Output)
+b32 AABBInitSphereMoving(sphere_moving *Sphere, f64 Time0, f64 Time1, aabb *Output)
 {
   aabb Result0 = AABBInit(Sub(SphereMovingGetPos(Sphere, Time0), V3f64(Sphere->Radius, Sphere->Radius, Sphere->Radius)),
                           Add(SphereMovingGetPos(Sphere, Time0), V3f64(Sphere->Radius, Sphere->Radius, Sphere->Radius)));
   aabb Result1 = AABBInit(Sub(SphereMovingGetPos(Sphere, Time1), V3f64(Sphere->Radius, Sphere->Radius, Sphere->Radius)),
                           Add(SphereMovingGetPos(Sphere, Time1), V3f64(Sphere->Radius, Sphere->Radius, Sphere->Radius)));
   WriteToRef(Output, AABBInitContainer(Result0, Result1));
-  return 1;
+  return AABB_ISBOUNDABLE;
 }
 b32 AABBInitSurface(surface *Surface, f64 Time0, f64 Time1, aabb *Output)
 {
@@ -48,10 +78,19 @@ b32 AABBInitSurface(surface *Surface, f64 Time0, f64 Time1, aabb *Output)
       AABBInitSphere(&Surface->Sphere, Output);
     }break;
     case SurfaceKind_SphereMoving: {
-      ABBBInitSphereMoving(&Surface->SphereMoving, Time0, Time1, Output);
+      AABBInitSphereMoving(&Surface->SphereMoving, Time0, Time1, Output);
     }break;
     case SurfaceKind_Plane: {
-      Assert(!"Not implemented");
+      AABBInitPlane(Output); //NOTE: caller probably doesnt handle unbounable surfaces
+    }break;
+    case SurfaceKind_RectXY: {
+      AABBInitRectXY(&Surface->Rect, Output);
+    }break;
+    case SurfaceKind_RectXZ: {
+      AABBInitRectXZ(&Surface->Rect, Output);
+    }break;
+    case SurfaceKind_RectYZ: {
+      AABBInitRectYZ(&Surface->Rect, Output);
     }break;
     case SurfaceKind_BVHNode: {
       AABBInitBVHNode(&Surface->BvhNode, Output);

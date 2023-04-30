@@ -21,6 +21,34 @@ inline sphere_moving SurfaceSphereMovingInit(v3f64 Pos0, v3f64 Pos1,
   };
   return Result;
 }
+inline rect SurfaceRectXYInit(f64 x0, f64 x1, f64 y0, f64 y1, f64 Offset, u32 MatId)
+{
+  rect Result = {
+    .Points = R3f64(x0,y0,0.0,x1,y1,0.0),
+    .Offset = Offset,
+    .MatId = MatId,
+  };
+  return Result;
+}
+inline rect SurfaceRectXZInit(f64 x0, f64 x1, f64 z0, f64 z1, f64 Offset, u32 MatId)
+{
+  rect Result = {
+    .Points = R3f64(x0,0.0,z0,x1,0.0,z1),
+    .Offset = Offset,
+    .MatId = MatId,
+  };
+  return Result;
+}
+inline rect SurfaceRectYZInit(f64 y0, f64 y1, f64 z0, f64 z1, f64 Offset, u32 MatId)
+{
+  rect Result = {
+    .Points = R3f64(0.0,y0,z0,0.0,y1,z1),
+    .Offset = Offset,
+    .MatId = MatId,
+  };
+  return Result;
+}
+
 //~ HELPERS
 inline v3f64 SphereMovingGetPos(sphere_moving *SphereMoving, f64 Time)
 {
@@ -51,7 +79,7 @@ v3f64 Refract(v3f64 uv, v3f64 Normal, f64 etai_over_etat)
   f64 CosTheta = Min(Dot(Scale(uv, -1.0), Normal), 1.0);
   
   v3f64 RayOutPerp  = Scale(Add(uv, Scale(Normal, CosTheta)), etai_over_etat);
-  v3f64 RayOutParel = Scale(Normal, -SquareRoot(fabs(1.0 - LengthSquared(RayOutPerp))));
+  v3f64 RayOutParel = Scale(Normal, -SquareRoot(Abs(1.0 - LengthSquared(RayOutPerp))));
   v3f64 Result = Add(RayOutPerp, RayOutParel);
   return Result;
 }
@@ -65,7 +93,7 @@ f64 Reflectance(f64 Cosine, f64 IndexOfRefraction)
 }
 b32 MaterialScatter(material *Material, texture *Texture, ray Ray, hit Hit, v3f64 *Atten, ray *Scattered)
 {
-  b32 Result = 0;
+  b32 Result = SCATTER_IGNORE;
   switch(Material->Kind)
   {
     case MaterialKind_Lambert:
@@ -75,14 +103,14 @@ b32 MaterialScatter(material *Material, texture *Texture, ray Ray, hit Hit, v3f6
       
       WriteToRef(Scattered, RayInit(Hit.Pos, ScatterDir, Ray.Time));
       WriteToRef(Atten, TextureGetColor(Texture, Hit.u, Hit.v, Hit.Pos));
-      Result = 1;
+      Result = SCATTER_PROCESS;
     } break;
     case MaterialKind_Metal:
     {
       v3f64 Reflected = Reflect(Normalize(Ray.Dir), Hit.Normal);
       WriteToRef(Scattered, RayInit(Hit.Pos, Add(Reflected, Scale(RandInUnitSphere(), Material->Fuzz)), Ray.Time));
       WriteToRef(Atten, TextureGetColor(Texture, Hit.u, Hit.v, Hit.Pos));
-      Result = (Dot(Scattered->Dir, Hit.Normal)>0);
+      Result = (Dot(Scattered->Dir, Hit.Normal)>0)?SCATTER_PROCESS:SCATTER_IGNORE;
     } break;
     case MaterialKind_Dielectric:
     {
@@ -98,8 +126,22 @@ b32 MaterialScatter(material *Material, texture *Texture, ray Ray, hit Hit, v3f6
       else
       { Dir = Refract(UnitDir, Hit.Normal, RefractRatio); }
       WriteToRef(Scattered, RayInit(Hit.Pos, Dir, Ray.Time));
-      Result = 1;
+      Result = SCATTER_PROCESS;
     } break;
+    case MaterialKind_DiffuseLight:
+    {
+      WriteToRef(Atten, V3f64(1.0,1.0,1.0));
+      Result = SCATTER_IGNORE;
+    } break;
+  }
+  return Result;
+}
+v3f64 MaterialEmmited(material *Material, texture *Texture, f64 u, f64 v, v3f64 Pos)
+{
+  v3f64 Result = V3f64(0,0,0);
+  if(Material->Kind==MaterialKind_DiffuseLight)
+  {
+    Result = Scale(TextureGetColor(Texture, u, v, Pos), 1.0);
   }
   return Result;
 }
@@ -114,7 +156,7 @@ b32 SurfaceSphereHit(sphere *Sphere, hit *Hit, ray Ray, f64 Mint, f64 Maxt)
   f64 half_b = Dot(oc, Ray.Dir);
   f64 c = LengthSquared(oc) - Sphere->Radius*Sphere->Radius;
   f64 Discriminant = half_b*half_b - a*c;
-  if (Discriminant<0) { return 0; }
+  if (Discriminant<0) { return HIT_NOTDETECTED; }
   f64 sqrtd = SquareRoot(Discriminant);
   
   // Find nearest root
@@ -122,7 +164,7 @@ b32 SurfaceSphereHit(sphere *Sphere, hit *Hit, ray Ray, f64 Mint, f64 Maxt)
   if(Root<Mint || Maxt<Root)
   {
     Root = (-half_b + sqrtd)/a;
-    if(Root<Mint || Maxt<Root) { return 0; }
+    if(Root<Mint || Maxt<Root) { return HIT_NOTDETECTED; }
   }
   NewHit.t   = Root;
   NewHit.Pos = RayAt(Ray, Root);
@@ -131,7 +173,7 @@ b32 SurfaceSphereHit(sphere *Sphere, hit *Hit, ray Ray, f64 Mint, f64 Maxt)
   SphereGetUV(OutwardNormal, &NewHit.u, &NewHit.v);
   NewHit.MatId = Sphere->MatId;
   WriteToRef(Hit, NewHit); 
-  return 1;
+  return HIT_DETECTED;
   
 }
 b32 SurfaceSphereMovingHit(sphere_moving *Sphere, hit *Hit, ray Ray, f64 Mint, f64 Maxt)
@@ -143,7 +185,7 @@ b32 SurfaceSphereMovingHit(sphere_moving *Sphere, hit *Hit, ray Ray, f64 Mint, f
   f64 half_b = Dot(oc, Ray.Dir);
   f64 c = LengthSquared(oc) - Sphere->Radius*Sphere->Radius;
   f64 Discriminant = half_b*half_b - a*c;
-  if (Discriminant<0) { return 0; }
+  if (Discriminant<0) { return HIT_NOTDETECTED; }
   f64 sqrtd = SquareRoot(Discriminant);
   
   // Find nearest root
@@ -151,7 +193,7 @@ b32 SurfaceSphereMovingHit(sphere_moving *Sphere, hit *Hit, ray Ray, f64 Mint, f
   if(Root<Mint || Maxt<Root)
   {
     Root = (-half_b + sqrtd)/a;
-    if(Root<Mint || Maxt<Root) { return 0; }
+    if(Root<Mint || Maxt<Root) { return HIT_NOTDETECTED; }
   }
   NewHit.t   = Root;
   NewHit.Pos = RayAt(Ray, Root);
@@ -160,7 +202,7 @@ b32 SurfaceSphereMovingHit(sphere_moving *Sphere, hit *Hit, ray Ray, f64 Mint, f
   SphereGetUV(OutwardNormal, &NewHit.u, &NewHit.v);
   NewHit.MatId = Sphere->MatId;
   WriteToRef(Hit, NewHit); 
-  return 1;
+  return HIT_DETECTED;
 }
 b32 AABBHit(aabb *Aabb, ray Ray, f64 tmin, f64 tmax)
 {
@@ -172,19 +214,86 @@ b32 AABBHit(aabb *Aabb, ray Ray, f64 tmin, f64 tmax)
                   (Aabb->max.e[a] - Ray.Origin.e[a])/Ray.Dir.e[a]);
     tmin = fmax(t0, tmin);
     tmax = fmin(t1, tmax);
-    if(tmax <= tmin) return 0;
+    if(tmax <= tmin) return HIT_NOTDETECTED;
   }
-  return 1;
+  return HIT_DETECTED;
 }
-b32 SurfaceHit(surface *Surface, hit *Hit, ray Ray, f64 Mint, f64 Maxt);
 b32 SurfaceBVHNodeHit(bvh_node *BvhNode, hit *Hit, ray Ray, f64 tmin, f64 tmax)
 {
-  if(!AABBHit(&BvhNode->AABB, Ray, tmin, tmax)) return 0;
+  if(!AABBHit(&BvhNode->AABB, Ray, tmin, tmax)) return HIT_NOTDETECTED;
   b32 hit_left  = SurfaceHit(BvhNode->Left, Hit, Ray, tmin, tmax);
   b32 hit_right = SurfaceHit(BvhNode->Right, Hit, Ray, tmin, hit_left?Hit->t:tmax);
   return (hit_left || hit_right);
 }
-//b32 SurfacePlaneHit(plane *Plane, hit *Hit, ray Ray, f64 Mint, f64 Maxt) {return 1;}
+#if 0
+b32 SurfacePlaneHit(plane *Plane, hit *Hit, ray Ray, f64 Mint, f64 Maxt)
+{
+  return HIT_DETECTED;
+}
+#endif
+b32 SurfaceRectXYHit(rect *Rect, hit *Hit, ray Ray, f64 Mint, f64 Maxt)
+{
+  hit NewHit = {0};
+  r3f64 p = Rect->Points;
+  f64 t = (Rect->Offset - Ray.Origin.z)/Ray.Dir.z;
+  if(t < Mint || t > Maxt) return HIT_NOTDETECTED;
+  
+  f64 x = Ray.Origin.x + t*Ray.Dir.x;
+  f64 y = Ray.Origin.y + t*Ray.Dir.y;
+  if(x < p.x0 || x > p.x1 || y < p.y0 || y > p.y1) return HIT_NOTDETECTED;
+  
+  NewHit.u = (x - p.x0)/(p.x1-p.x0);
+  NewHit.v = (y - p.y0)/(p.y1-p.y0);
+  NewHit.t = t;
+  v3f64 OutwardNormal = V3f64(0,0,1);
+  HitSetFaceNormal(&NewHit, Ray, OutwardNormal);
+  NewHit.MatId = Rect->MatId;
+  NewHit.Pos = RayAt(Ray, t);
+  WriteToRef(Hit, NewHit);
+  return HIT_DETECTED;
+}
+b32 SurfaceRectXZHit(rect *Rect, hit *Hit, ray Ray, f64 Mint, f64 Maxt)
+{
+  hit NewHit = {0};
+  r3f64 p = Rect->Points;
+  f64 t = (Rect->Offset - Ray.Origin.y)/Ray.Dir.y;
+  if(t < Mint || t > Maxt) return HIT_NOTDETECTED;
+  
+  f64 x = Ray.Origin.x + t*Ray.Dir.x;
+  f64 z = Ray.Origin.z + t*Ray.Dir.z;
+  if(x < p.x0 || x > p.x1 || z < p.z0 || z > p.z1) return HIT_NOTDETECTED;
+  
+  NewHit.u = (x - p.x0)/(p.x1-p.x0);
+  NewHit.v = (z - p.z0)/(p.z1-p.z0);
+  NewHit.t = t;
+  v3f64 OutwardNormal = V3f64(0,1,0);
+  HitSetFaceNormal(&NewHit, Ray, OutwardNormal);
+  NewHit.MatId = Rect->MatId;
+  NewHit.Pos = RayAt(Ray, t);
+  WriteToRef(Hit, NewHit);
+  return HIT_DETECTED;
+}
+b32 SurfaceRectYZHit(rect *Rect, hit *Hit, ray Ray, f64 Mint, f64 Maxt)
+{
+  hit NewHit = {0};
+  r3f64 p = Rect->Points;
+  f64 t = (Rect->Offset - Ray.Origin.x)/Ray.Dir.x;
+  if(t < Mint || t > Maxt) return HIT_NOTDETECTED;
+  
+  f64 y = Ray.Origin.y + t*Ray.Dir.y;
+  f64 z = Ray.Origin.z + t*Ray.Dir.z;
+  if(y < p.y0 || y > p.y1 || z < p.z0 || z > p.z1) return HIT_NOTDETECTED;
+  
+  NewHit.u = (y - p.y0)/(p.y1-p.y0);
+  NewHit.v = (z - p.z0)/(p.z1-p.z0);
+  NewHit.t = t;
+  v3f64 OutwardNormal = V3f64(1,0,0);
+  HitSetFaceNormal(&NewHit, Ray, OutwardNormal);
+  NewHit.MatId = Rect->MatId;
+  NewHit.Pos = RayAt(Ray, t);
+  WriteToRef(Hit, NewHit);
+  return HIT_DETECTED;
+}
 b32 SurfaceHit(surface *Surface, hit *Hit, ray Ray, f64 Mint, f64 Maxt)
 {
   b32 Result = 0;
@@ -196,12 +305,18 @@ b32 SurfaceHit(surface *Surface, hit *Hit, ray Ray, f64 Mint, f64 Maxt)
     case SurfaceKind_SphereMoving: {
       Result = SurfaceSphereMovingHit(&Surface->SphereMoving, Hit, Ray, Mint, Maxt);
     }break;
-    case SurfaceKind_Plane: {
-      //SurfacePlaneMovingHit();
+    case SurfaceKind_RectXY: {
+      Result = SurfaceRectXYHit(&Surface->Rect, Hit, Ray, Mint, Maxt);
+    }break;
+    case SurfaceKind_RectXZ: {
+      Result = SurfaceRectXZHit(&Surface->Rect, Hit, Ray, Mint, Maxt);
+    }break;
+    case SurfaceKind_RectYZ: {
+      Result = SurfaceRectYZHit(&Surface->Rect, Hit, Ray, Mint, Maxt);
     }break;
     case SurfaceKind_BVHNode: {
       Result = SurfaceBVHNodeHit(&Surface->BvhNode, Hit, Ray, Mint, Maxt);
     }break;
   }
-  return Result;;
+  return Result;
 }

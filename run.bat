@@ -1,4 +1,5 @@
 @echo off
 
-build\main.exe > data\image.ppm
+build\main.exe
+rem > data\image.ppm
 

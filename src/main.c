@@ -30,7 +30,7 @@ b32 RenderTile(work_queue *Queue)
   u64 WorkOrderIndex = LockedAddAndGetLastValue(&Queue->NextWorkOrderIndex, 1);
   if(WorkOrderIndex >= Queue->WorkOrderCount) { return 0;}
   work_order *Order = &Queue->WorkOrders[WorkOrderIndex];
-  fprintf(stderr, "\n new thread work started for work id(%lld)...", WorkOrderIndex);
+  fprintf(stderr, "new tile[%5lld] started by thread[%5lu]...\n", WorkOrderIndex, GetCurrentThreadId());
   
   /// destructure
   world        *World = Order->World;
@@ -57,8 +57,8 @@ b32 RenderTile(work_queue *Queue)
         //               used for motion blur since we can randomly choose a sphere position
         //               in the line segment it moves in for each sample we take for the anti-aliasing.
         // TODO(MIGUEL): Read the random number generator section
-        f64 u = (f64)(x + RandF64Uni())/(f64)(ImageWidth-1);
-        f64 v = (f64)(y + RandF64Uni())/(f64)(ImageHeight-1);
+        f64 u = ((f64)x + RandF64Bi())/(f64)(ImageWidth-1);
+        f64 v = ((f64)y + RandF64Bi())/(f64)(ImageHeight-1);
         ray Ray = CameraGetRay(Camera, u, v);
         PixelColor = Add(PixelColor, RayColor(Ray, MaxDepth, World));
       }
@@ -68,12 +68,6 @@ b32 RenderTile(work_queue *Queue)
   LockedAddAndGetLastValue(&Queue->TileRetiredCount, 1);
   return 1;
 }
-DWORD WorkProcRenderTiles(void *Param)
-{
-  work_queue *Queue = (work_queue *)Param;
-  while(RenderTile(Queue)) {};
-  return 0;
-}
 int main(void)
 {
   u8 wd[256] = {0};
@@ -82,63 +76,71 @@ int main(void)
   RandSetSeed();
   
   // IMAGE
-  f64 AspectRatio = 16.0/9.0;
-  s32 ImageWidth  = 800;
+  //TODO: The image resolution, the sample per pixel, and depth some how effect the viasabilty
+  //      of axis-aligned rects of the cornell box. Figure out how these params effect the visablity.
+  //      Verify the bvh aabbs and the storage using different parameters. List out the params and the 
+  //      output and write out the observations.
+  f64 AspectRatio = 1.0;//16.0/9.0;
+  s32 ImageWidth  = 500;
   s32 ImageHeight = (int)(ImageWidth/AspectRatio);
-  s32 SamplesPerPixel = 50;
-  s32 MaxDepth = 10;
+  s32 SamplesPerPixel = 200;
+  s32 MaxDepth = 50;
   
   // WORLD
   world World = {0};
-  WorldInit(&World);
+  WorldInit(&World, V3f64(0,0,0));
   
   // SCENE
   camera Camera = {0};
   //SceneRandom(&World, &Camera, AspectRatio);
   //SceneBVHTest(&World, &Camera, AspectRatio);
-  //SceneTwoSpheres(&World, &Camera, AspectRatio);
+  //SceneTwoSpheres(&World, &Camera, AspectRatio); 
   //SceneTwoPerlinSpheres(&World, &Camera, AspectRatio);
-  SceneEarthSolo(&World, &Camera, AspectRatio);
-  
+  //SceneEarthSolo(&World, &Camera, AspectRatio);
+  //SceneSimpleLight(&World, &Camera, AspectRatio);
+  SceneCornellBox(&World, &Camera, AspectRatio);
   
   // WORK
-  u32 CoreCount = OSGetCoreCount();
+  u32 CoreCount = OSGetCoreCount(); //TODO: deduce the actual core count.
   u8 *ImageBuffer = OSMemoryAlloc(sizeof(u32)*ImageWidth*ImageHeight);
   work_queue WorkQueue = WorkQueueInit(TileFmt_uint_R8G8B8A8,
                                        ImageBuffer, ImageWidth, ImageHeight,
                                        &World, MaxDepth,
                                        &Camera, SamplesPerPixel, CoreCount);
+  fprintf(stderr,
+          "starting raytrace...\n"
+          "    trace information:\n"
+          "    physical core count: %d\n"
+          "    resolution         : %dx%d\n"
+          "    samples per pixel  : %d\n"
+          "    bounce max depth   : %d\n"
+          "    tile count         : %d\n"
+          "    tile dim           : %dx%d\n",
+          CoreCount,
+          ImageWidth, ImageHeight,
+          SamplesPerPixel,
+          MaxDepth,
+          WorkQueue.TileTotalCount,
+          WorkQueue.TileWidth, WorkQueue.TileHeight);
+  
   u64 Begin = OSTimerGetTick();
-  u64 ThreadHandles[64] = {0};
-  for(u32 CoreIdx=0; CoreIdx<CoreCount; CoreIdx++)
+  WorkQueueLaunchThreads(&WorkQueue);
+  WorkQueueBeginWork(&WorkQueue);
+  while(RenderTile(&WorkQueue))
   {
-    ThreadHandles[CoreIdx] = OSThreadCreate(&WorkQueue, WorkProcRenderTiles);
-  }
-  while(RenderTile(&WorkQueue)) {
-    fprintf(stderr,"\ntiles %lld of %d completed\n", WorkQueue.TileRetiredCount, WorkQueue.TileTotalCount);
+    fprintf(stderr,"\ntiles: %lld of %d completed\n", WorkQueue.TileRetiredCount, WorkQueue.TileTotalCount);
   };
-  OSThreadSync(ThreadHandles, CoreCount);
+  OSThreadSync(WorkQueue.ThreadHandles, CoreCount);
   u64 End = OSTimerGetTick();
   f64 SecondsElapsed = OSTimerGetSecondsElepsed(Begin, End);
-  fprintf(stderr,"done..\nsec elapsed: %f\nmin elapsed: %f\n", SecondsElapsed, SecondsElapsed/60.0);
+  fprintf(stderr,"raytrace finished..\nsec elapsed: %f\nmin elapsed: %f\n", SecondsElapsed, SecondsElapsed/60.0);
   
   
   // RENDER AS PPM
-  fprintf(stderr, "\n\n writing as ppm..\n");
-  fprintf(stdout, "P3\n%d %d\n255\n", ImageWidth, ImageHeight);
-  for(s32 y = ImageHeight-1; y>=0; --y)
-  {
-    fprintf(stderr, "\rscan lines remaining... %d ", y);
-    fflush(stderr);
-    for(s32 x = 0; x<ImageWidth; ++x)
-    {
-      u32 *Pixel = ImageGetPixel(ImageBuffer, ImageWidth, x,y);
-      WriteToPPM(*Pixel);
-    }
-    fprintf(stdout,"#newline\n");
-  }
-  fprintf(stderr, "done..\n");
+  ExportAsPPM("F:\\Dev\\raytracer\\data\\image.ppm", ImageBuffer, ImageWidth, ImageHeight);
+  ExportAsPNG("F:\\Dev\\raytracer\\data\\image.png", ImageBuffer, ImageWidth, ImageHeight);
   
   OSEntropyRelease();
+  fprintf(stderr,"done!\n");
   return 0;
 }

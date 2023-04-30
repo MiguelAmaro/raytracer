@@ -2,7 +2,9 @@
 #define RTUTIL_H
 
 #define STB_IMAGE_IMPLEMENTATION
+#define STB_IMAGE_WRITE_IMPLEMENTATION
 #include "stb_image.h"
+#include "stb_image_write.h"
 
 u32 RandInt(u32 min, u32 max)
 {
@@ -53,7 +55,7 @@ f64 TrilinearInterp(v3f64 c[2][2][2], f64 u, f64 v, f64 w)
 b32 NearZero(v3f64 a)
 {
   f64 s = 1e-8;
-  return ((fabs(a.x)<s) && (fabs(a.y)<s) && (fabs(a.z)<s));
+  return ((Abs(a.x)<s) && (Abs(a.y)<s) && (Abs(a.z)<s));
 }
 v3f64 RandUnitVector(void)
 {
@@ -94,13 +96,56 @@ void WriteColorPPM(v3f64 Color, s32 SamplesPerPixel)
           (s32)(255.999*Clamp(Color.b, 0.0, 0.999)));
   return;
 }
-void WriteToPPM(u32 Color)
+void ExportAsPPM(const char *Path, u8 *ImageBuffer, s32 ImageWidth, s32 ImageHeight)
 {
-  fprintf(stdout, "%3d %3d %3d  \n",
-          (u32)(0xff&(Color>>24)),
-          (u32)(0xff&(Color>>16)),
-          (u32)(0xff&(Color>>8 )));
+  FILE *outfile = fopen(Path, "w");
+  fprintf(stderr, "\n\nexporting as ppm..\n");
+  fprintf(outfile, "P3\n%d %d\n255\n", ImageWidth, ImageHeight);
+  for(s32 y = ImageHeight-1; y>=0; --y)
+  {
+    fprintf(stderr, "\rscan lines remaining... %d", y);
+    fflush(stderr);
+    for(s32 x = 0; x<ImageWidth; ++x)
+    {
+      u32 *Pixel = ImageGetPixel(ImageBuffer, ImageWidth, x,y);
+      u32 Color  = *Pixel;
+      fprintf(outfile, "%3d %3d %3d  \n",
+              (u32)(0xff&(Color>>24)),
+              (u32)(0xff&(Color>>16)),
+              (u32)(0xff&(Color>>8 )));
+    }
+    fprintf(outfile,"#newline\n");
+  }
+  fprintf(stderr, "\nexport finished..\n");
+  fclose(outfile);
   return;
 }
+void ExportAsPNG(const char *Path, u8 *ImageBuffer, s32 ImageWidth, s32 ImageHeight)
+{
+  fprintf(stderr, "\n\nexporting as png....\n");
+  u8 *CorrectedImageBuffer = OSMemoryAlloc(ImageWidth*ImageHeight*sizeof(u32));
+  s32 PixelCount = ImageWidth*ImageHeight;
+  u32 *Dest = (u32 *)CorrectedImageBuffer;
+  u32 *Src  = (u32 *)ImageBuffer;
+  for(s32 p=0;p<PixelCount;p++)
+  {
+    s32 x0 = p%ImageWidth;
+    s32 y0 = (p/ImageWidth);
+    s32 x1 = x0;
+    s32 y1 = (ImageHeight-1)-y0;
+    u32 Pixel = Src[y1*ImageWidth + x1];
+    u8 a = (u8)(Pixel>>0)&0xff;
+    u8 b = (u8)(Pixel>>8)&0xff;
+    u8 g = (u8)(Pixel>>16)&0xff;
+    u8 r = (u8)(Pixel>>24)&0xff;
+    Pixel = ((b<<16)|(g<<8)|(r<<0)|(a<<24));
+    Dest[y0*ImageWidth + x0] = Pixel;
+  }
+  
+  stbi_write_png(Path, ImageWidth, ImageHeight, 4, CorrectedImageBuffer, 4*ImageWidth);
+  fprintf(stderr, "\nexport finished..\n");
+  return;
+}
+
 
 #endif //RTUTIL_H

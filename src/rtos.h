@@ -115,8 +115,12 @@ void OSThreadSync(u64 *ThreadHandles, u32 ThreadCount)
 }
 u32 OSGetCoreCount(void)
 {
+  //https://stackoverflow.com/questions/28893786/how-to-get-the-number-of-actual-cores-on-the-cpu-on-windows
   SYSTEM_INFO SystemInfo = {0};
+  SYSTEM_LOGICAL_PROCESSOR_INFORMATION_EX ProcessorInfo= {0};
+  DWORD Length = 0;
   GetSystemInfo(&SystemInfo);
+  GetLogicalProcessorInformationEx(RelationProcessorPackage, &ProcessorInfo, &Length);
   u32 Result = SystemInfo.dwNumberOfProcessors;
   return Result;
 }

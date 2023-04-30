@@ -23,6 +23,7 @@ struct world
   u32 TextureCount;
   u32 NoiseCount;
   
+  v3f64 DefaultBackground;
   u32 DefaultNoiseId;
   u32 DefaultTexId;
   u32 DefaultMatId;
@@ -33,11 +34,11 @@ struct world
 #define TEXTURE_INVALID_ID (0xffffffff)
 #define NOISE_INVALID_ID (0xffffffff)
 
-void WorldInit(world *World);
+void WorldInit(world *World, v3f64 Background);
 b32  WorldHit(world *World, hit *Hit, ray Ray, f64 Mint, f64 Maxt);
 b32  WorldHitBVH(world *World, hit *Hit, ray Ray, f64 Mint, f64 Maxt);
 u32  WorldMaterialAdd(world *World, material_kind Kind, u32 TexId, f64 Fuzziness, f64 IndexOfRefraction);
-u32   WorldTextureAdd(world *World, texture_kind Kind, v3f64 Color, u32 TexIdA, u32 TexIdB, u32 NoiseId, f64 NoiseScale, const char *Path);
+u32   WorldTextureAdd(world *World, texture_kind Kind, v3f64 Color, u32 CheckerTexIdA, u32 CheckerTexIdB, u32 NoiseId, f64 NoiseScale, const char *Path);
 u32     WorldNoiseAdd(world *World, noise_kind Kind);
 material *WorldMaterialGetFromId(world *World, u32 MatId);
 texture   *WorldTextureGetFromId(world *World, u32 TexId);
