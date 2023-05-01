@@ -22,7 +22,7 @@ typedef   double f64;
 #define U32Max UINT32_MAX;
 
 // USEFUL FUNCTIONS
-inline f64 Inifintyf64(void)
+inline f64 Infintyf64(void)
 {
   u64 u = 0x7ff0000000000000;
   f64 *p = (f64*)&u;

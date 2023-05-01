@@ -215,7 +215,7 @@ union r3f64
   struct { f64 x0; f64 y0; f64 z0; f64 x1; f64 y1; f64 z1; };
   f64 e[6];
 };
-#define R3f64(...) _Generic(ARG1(__VA_ARGS__), f64: R3f64_6f64)(__VA_ARGS__)
+#define R3f64(...) _Generic(ARG1(__VA_ARGS__), f64: R3f64_6f64, v3f64: R3f64_2v3f64)(__VA_ARGS__)
 r3f64 R3f64_6f64(f64 x0, f64 y0, f64 z0, f64 x1, f64 y1, f64 z1)
 {
   r3f64 r = { 
@@ -223,6 +223,11 @@ r3f64 R3f64_6f64(f64 x0, f64 y0, f64 z0, f64 x1, f64 y1, f64 z1)
     .y0 = y0, .y1 = y1,
     .z0 = z0, .z1 = z1
   };
+  return r;
+}
+r3f64 R3f64_2v3f64(v3f64 min, v3f64 max)
+{
+  r3f64 r = { .min = min, .max = max };
   return r;
 }
 

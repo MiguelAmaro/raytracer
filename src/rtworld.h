@@ -38,7 +38,7 @@ struct world
 #define TEXTURE_INVALID_ID (0xffffffff)
 #define NOISE_INVALID_ID (0xffffffff)
 
-void WorldInit(world *World, v3f64 Background);
+world *WorldInit(v3f64 Background);
 b32  WorldHit(world *World, hit *Hit, ray Ray, f64 Mint, f64 Maxt, b32 UseBVH);
 u32  WorldMaterialAdd(world *World, material_kind Kind, u32 TexId, f64 Fuzziness, f64 IndexOfRefraction);
 u32   WorldTextureAdd(world *World, texture_kind Kind, v3f64 Color, u32 CheckerTexIdA, u32 CheckerTexIdB, u32 NoiseId, f64 NoiseScale, const char *Path);

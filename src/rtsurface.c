@@ -53,21 +53,51 @@ inline box SurfaceBoxInit(v3f64 min, v3f64 max, u32 MatId)
   box Result = { .min = min, .max = max, .MatId = MatId };
   return Result;
 }
-inline transformed_inst SurfaceTransformedInstanceInit(transform_kind Kind, surface *Instance, v3f64 Offset, f64 CosTheta, f64 SinTheta, b32 HasBox)
+inline transformed_inst SurfaceTransformedInstanceInit(transform_kind Kind, surface *Instance, v3f64 Offset, f64 Radians)
 {
   transformed_inst Result = { .Kind = Kind, .Instance = Instance };
+  if(Kind & TransformKind_RotateY)
+  {
+    Result.CosTheta = Cos(Radians);
+    Result.SinTheta = Sin(Radians);
+    Result.HasBox = AABBInitSurface(Instance, 0.0, 1.0, &Result.AABB);
+    v3f64 min = V3f64( Infintyf64(),  Infintyf64(),  Infintyf64());
+    v3f64 max = V3f64(-Infintyf64(), -Infintyf64(), -Infintyf64());
+    for(s32 i=0;i<2;i++)
+    {
+      for(s32 j=0;j<2;j++)
+      {
+        for(s32 k=0;k<2;k++)
+        {
+          f64 x = i*Result.AABB.max.x + (1-i)*Result.AABB.min.x;
+          f64 y = j*Result.AABB.max.y + (1-j)*Result.AABB.min.y;
+          f64 z = k*Result.AABB.max.z + (1-k)*Result.AABB.min.z;
+          f64 NewX =  Result.CosTheta*x + Result.SinTheta*z;
+          f64 NewZ = -Result.SinTheta*x + Result.CosTheta*z;
+          v3f64 Tester = V3f64(NewX, y, NewZ);
+          for(s32 c=0;c<3;c++)
+          {
+            min.e[c] = fmin(min.e[c], Tester.e[c]);
+            max.e[c] = fmax(max.e[c], Tester.e[c]);
+          }
+        }
+      }
+    }
+    Result.AABB = AABBInit(min, max);
+  }
   if(Kind & TransformKind_Translate)
   {
     Result.Offset = Offset;
   }
-  if(Kind & TransformKind_Translate)
-  {
-    Result.CosTheta = CosTheta;
-    Result.SinTheta = SinTheta;
-    Result.HasBox   = HasBox;
-  }
   return Result;
 }
+inline constant_medium SurfaceConstantMediumInit(surface *Surface, f64 d, u32 MatId)
+{
+  //TODO: finish
+  constant_medium Result = { .Boundary = Surface, .NegInvDensity = d, .MatId = MatId };
+  return Result;
+}
+
 
 //~ HELPERS
 inline v3f64 SphereMovingGetPos(sphere_moving *SphereMoving, f64 Time)
@@ -310,8 +340,83 @@ b32 SurfaceRectYZHit(rect *Rect, hit *Hit, ray Ray, f64 Mint, f64 Maxt)
 }
 b32 SurfaceBoxHit(box *Box, hit *Hit, ray Ray, f64 Mint, f64 Maxt)
 {
+  //// TODO(MIGUEL): Test AABB first
   b32 Result = SurfaceListHit(Box->SidesList, 6, Hit, Ray, Mint, Maxt);
   return Result;
+}
+b32 SurfaceTransformedInstHit(transformed_inst *Instance, hit *Hit, ray Ray, f64 Mint, f64 Maxt)
+{
+  if(Instance->Kind == (TransformKind_Translate | TransformKind_RotateY))
+  {
+    ray MovedRay = RayInit(Sub(Ray.Origin, Instance->Offset), Ray.Dir, Ray.Time);
+    v3f64 Origin = MovedRay.Origin;
+    v3f64 Dir    = MovedRay.Dir;
+    f64 SinTheta = Instance->SinTheta;
+    f64 CosTheta = Instance->CosTheta;
+    Origin.x = CosTheta*MovedRay.Origin.x - SinTheta*MovedRay.Origin.z;
+    Origin.z = SinTheta*MovedRay.Origin.x + CosTheta*MovedRay.Origin.z;
+    Dir.x    = CosTheta*MovedRay.Dir.x    - SinTheta*MovedRay.Dir.z;
+    Dir.z    = SinTheta*MovedRay.Dir.x    + CosTheta*MovedRay.Dir.z;
+    
+    ray RotatedRay = RayInit(Origin, Dir, MovedRay.Time);
+    if(!SurfaceHit(Instance->Instance, Hit, RotatedRay, Mint, Maxt)) 
+    {
+      return HIT_NOTDETECTED;
+    }
+    
+    v3f64 Pos    = Hit->Pos;
+    v3f64 Normal = Hit->Normal;
+    
+    Pos.x    =  CosTheta*Hit->Pos.x    + SinTheta*Hit->Pos.z;
+    Pos.z    = -SinTheta*Hit->Pos.x    + CosTheta*Hit->Pos.z;
+    Normal.x =  CosTheta*Hit->Normal.x + SinTheta*Hit->Normal.z;
+    Normal.z = -SinTheta*Hit->Normal.x + CosTheta*Hit->Normal.z;
+    
+    Hit->Pos = Pos;
+    HitSetFaceNormal(Hit, RotatedRay, Normal);
+    Hit->Pos = Add(Hit->Pos, Instance->Offset);
+    HitSetFaceNormal(Hit, MovedRay, Hit->Normal);
+    return HIT_DETECTED;
+  }
+  if(Instance->Kind == TransformKind_RotateY)
+  {
+    v3f64 Origin = Ray.Origin;
+    v3f64 Dir    = Ray.Dir;
+    f64 SinTheta = Instance->SinTheta;
+    f64 CosTheta = Instance->CosTheta;
+    Origin.x = CosTheta*Ray.Origin.x - SinTheta*Ray.Origin.z;
+    Origin.z = SinTheta*Ray.Origin.x + CosTheta*Ray.Origin.z;
+    Dir.x    = CosTheta*Ray.Dir.x    - SinTheta*Ray.Dir.z;
+    Dir.z    = SinTheta*Ray.Dir.x    + CosTheta*Ray.Dir.z;
+    
+    ray RotatedRay = RayInit(Origin, Dir, Ray.Time);
+    if(!SurfaceHit(Instance->Instance, Hit, RotatedRay, Mint, Maxt)) 
+    {
+      return HIT_NOTDETECTED;
+    }
+    
+    v3f64 Pos    = Hit->Pos;
+    v3f64 Normal = Hit->Normal;
+    
+    Pos.x    =  CosTheta*Hit->Pos.x    + SinTheta*Hit->Pos.z;
+    Pos.z    = -SinTheta*Hit->Pos.x    + CosTheta*Hit->Pos.z;
+    Normal.x =  CosTheta*Hit->Normal.x + SinTheta*Hit->Normal.z;
+    Normal.z = -SinTheta*Hit->Normal.x + CosTheta*Hit->Normal.z;
+    
+    Hit->Pos = Pos;
+    HitSetFaceNormal(Hit, RotatedRay, Normal);
+  }
+  if(Instance->Kind == TransformKind_Translate)
+  {
+    ray MovedRay = RayInit(Sub(Ray.Origin, Instance->Offset), Ray.Dir, Ray.Time);
+    if(!SurfaceHit(Instance->Instance, Hit, MovedRay, Mint, Maxt))
+    { 
+      return HIT_NOTDETECTED;
+    }
+    Hit->Pos = Add(Hit->Pos, Instance->Offset);
+    HitSetFaceNormal(Hit, MovedRay, Hit->Normal);
+  }
+  return HIT_DETECTED;
 }
 b32 SurfaceHit(surface *Surface, hit *Hit, ray Ray, f64 Mint, f64 Maxt)
 {
@@ -335,6 +440,9 @@ b32 SurfaceHit(surface *Surface, hit *Hit, ray Ray, f64 Mint, f64 Maxt)
     }break;
     case SurfaceKind_Box: {
       Result = SurfaceBoxHit(&Surface->Box, Hit, Ray, Mint, Maxt);
+    }break;
+    case SurfaceKind_TransformedInst: {
+      Result = SurfaceTransformedInstHit(&Surface->TransformedInst, Hit, Ray, Mint, Maxt);
     }break;
     case SurfaceKind_BVHNode: {
       Result = SurfaceBVHNodeHit(&Surface->BvhNode, Hit, Ray, Mint, Maxt);

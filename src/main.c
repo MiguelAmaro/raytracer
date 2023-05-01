@@ -74,16 +74,33 @@ int main(void)
   fprintf(stderr, "hello raytracer [%s]\n", OSGetWorkingDir(wd, 256));
   OSEntropyInit();
   RandSetSeed();
-  
+#if 0
+  int N = 1000;
+  int InsideCircle = 0;
+  int runs = 0;
+  while(1)
+  {
+    runs++;
+    f64 x = RandF64Bi();
+    f64 y = RandF64Bi();
+    if(x*x + y*y < 1) InsideCircle++;
+    if(runs%100000 == 0) 
+    {
+      printf("\r                                                       ");
+      printf("\rEstmate of Pi = %f", 4.0*((f64)InsideCircle)/(f64)runs);
+    }
+  }
+  return;
+  //End
+#endif
   f64 AspectRatio = 1.0;//16.0/9.0;
-  s32 ImageWidth  = 1000;
+  s32 ImageWidth  = 400;
   s32 ImageHeight = (int)(ImageWidth/AspectRatio);
-  s32 SamplesPerPixel = 400;
+  s32 SamplesPerPixel = 200;
   s32 MaxDepth = 50;
   
   // WORLD
-  world World = {0};
-  WorldInit(&World, V3f64(0,0,0));
+  world *World = WorldInit(V3f64(0.0,0.0,0.0));
   
   // SCENE
   camera Camera = {0};
@@ -93,14 +110,15 @@ int main(void)
   //SceneTwoPerlinSpheres(&World, &Camera, AspectRatio);
   //SceneEarthSolo(&World, &Camera, AspectRatio);
   //SceneSimpleLight(&World, &Camera, AspectRatio);
-  SceneCornellBox(&World, &Camera, AspectRatio);
+  SceneCornellBox(World, &Camera, AspectRatio);
+  //SceneTestCornellBox(World, &Camera, AspectRatio);
   
   // WORK
   u8 *ImageBuffer = OSMemoryAlloc(sizeof(u32)*ImageWidth*ImageHeight);
   u32 CoreCount   = OSGetCoreCount(); //TODO: deduce the actual core count.
   work_queue WorkQueue = WorkQueueInit(TileFmt_uint_R8G8B8A8,
                                        ImageBuffer, ImageWidth, ImageHeight,
-                                       &World, MaxDepth,
+                                       World, MaxDepth,
                                        &Camera, SamplesPerPixel, CoreCount);
   fprintf(stderr,
           "starting raytrace...\n"

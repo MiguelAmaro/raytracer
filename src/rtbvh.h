@@ -5,6 +5,7 @@
 #define AABB_ISNOTBOUNDABLE (0)
 
 typedef r3f64 aabb;
+b32 AABBInitSurface(surface *Surface, f64 Time0, f64 Time1, aabb *Output);
 
 aabb AABBInit(v3f64 min, v3f64 max)
 {
@@ -68,7 +69,34 @@ b32 AABBInitBox(box *Box, aabb *Output)
 {
   aabb Result = { .min = Box->min, .max = Box->max };
   WriteToRef(Output, Result);
-  return AABB_ISNOTBOUNDABLE;
+  return AABB_ISBOUNDABLE;
+}
+b32 AABBInitTransformedInst(transformed_inst *Instance, aabb *Output)
+{
+  aabb Result = {0};
+  // TODO(MIGUEL): Clean up and condense code
+  if(Instance->Kind == (TransformKind_Translate | TransformKind_RotateY))
+  {
+    if(!AABBInitSurface(Instance->Instance, 0,0, Output)) return AABB_ISNOTBOUNDABLE;
+    Result = Instance->AABB;
+    WriteToRef(Output, Result);
+    Result = AABBInit(Add(Output->min, Instance->Offset),
+                      Add(Output->max, Instance->Offset));
+    WriteToRef(Output, Result);
+  }
+  if(Instance->Kind == TransformKind_Translate)
+  {
+    if(!AABBInitSurface(Instance->Instance, 0,0, Output)) return AABB_ISNOTBOUNDABLE;
+    Result = AABBInit(Add(Output->min, Instance->Offset),
+                      Add(Output->max, Instance->Offset));
+    WriteToRef(Output, Result);
+  }
+  if(Instance->Kind == TransformKind_RotateY)
+  {
+    Result = Instance->AABB;
+    WriteToRef(Output, Result);
+  }
+  return AABB_ISBOUNDABLE;
 }
 b32 AABBInitSurface(surface *Surface, f64 Time0, f64 Time1, aabb *Output)
 {
@@ -92,6 +120,9 @@ b32 AABBInitSurface(surface *Surface, f64 Time0, f64 Time1, aabb *Output)
     }break;
     case SurfaceKind_Box: {
       Result = AABBInitBox(&Surface->Box, Output);
+    }break;
+    case SurfaceKind_TransformedInst: {
+      Result = AABBInitTransformedInst(&Surface->TransformedInst, Output);
     }break;
     case SurfaceKind_BVHNode: {
       Result = AABBInitBVHNode(&Surface->BvhNode, Output);

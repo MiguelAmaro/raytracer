@@ -16,6 +16,7 @@ enum surface_kind
   SurfaceKind_RectYZ,
   SurfaceKind_Box,
   SurfaceKind_TransformedInst,
+  //SurfaceKind_ConstantMedium,
   SurfaceKind_BVHNode,
 };
 typedef enum material_kind material_kind;
@@ -25,6 +26,7 @@ enum material_kind
   MaterialKind_Metal,
   MaterialKind_Dielectric,
   MaterialKind_DiffuseLight,
+  //MaterialKind_Isotropic,
 };
 typedef struct surface surface;
 typedef struct plane plane;
@@ -85,6 +87,13 @@ struct transformed_inst
   b32 HasBox;
   r3f64 AABB; 
 };
+typedef struct constant_medium constant_medium;
+struct constant_medium
+{
+  surface *Boundary;
+  u32 MatId;
+  f64 NegInvDensity;
+};
 typedef struct bvh_node bvh_node;
 struct bvh_node
 {
@@ -102,6 +111,7 @@ struct surface
     rect          Rect;
     box           Box;
     transformed_inst TransformedInst;
+    //constant_medium ConstantMedium;
     //special
     bvh_node BvhNode;
   };

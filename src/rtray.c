@@ -12,7 +12,7 @@ v3f64 RayColor(ray Ray, s32 Depth, world *World)
 {
   hit Hit = {0};
   if(Depth<=0) { return V3f64(0,0,0); }
-  if(!WorldHit(World, &Hit, Ray, 0.001, Inifintyf64(), 1)) { return World->DefaultBackground; }
+  if(!WorldHit(World, &Hit, Ray, 0.001, Infintyf64(), 1)) { return World->DefaultBackground; }
   
   ray ScatteredRay = {0};
   v3f64 Atten   = {0};

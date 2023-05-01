@@ -266,13 +266,79 @@ void SceneCornellBox(world *World, camera *Camera, f64 AspectRatio)
   rect RXYF = SurfaceRectXYInit(0.0,555.0,  0.0,555.0,  555.0, MW);
   WorldSurfaceAdd(World, SurfaceKind_RectXY, &RXYF);
   
-  box BB = SurfaceBoxInit(V3f64(130.0, 0.0, 65.0), V3f64(295.0, 165.0, 230.0), MW);
-  box BS = SurfaceBoxInit(V3f64(265.0, 0.0, 295.0), V3f64(430.0, 330.0, 330.0), MW);
-  WorldSurfaceAdd(World, SurfaceKind_Box, &BB);
-  WorldSurfaceAdd(World, SurfaceKind_Box, &BS);
+  box BB = SurfaceBoxInit(V3f64(0.0, 0.0, 0.0), V3f64(165.0, 335.0, 165.0), MW);
+  box BS = SurfaceBoxInit(V3f64(0.0, 0.0, 0.0), V3f64(165.0, 165.0, 165.0), MW);
+  surface *SBoxB = WorldSurfaceStaticAdd(World, SurfaceKind_Box, &BB);
+  surface *SBoxS = WorldSurfaceStaticAdd(World, SurfaceKind_Box, &BS);
+  transformed_inst XFB = SurfaceTransformedInstanceInit(TransformKind_RotateY | 
+                                                        TransformKind_Translate, SBoxB, V3f64(265.0,0.0,295.0), DegToRad64(15.0));
+  transformed_inst XFS = SurfaceTransformedInstanceInit(TransformKind_RotateY |
+                                                        TransformKind_Translate, SBoxS, V3f64(130.0,0.0,65.0), DegToRad64(-18.0));
+  WorldSurfaceAdd(World, SurfaceKind_TransformedInst, &XFB);
+  WorldSurfaceAdd(World, SurfaceKind_TransformedInst, &XFS);
   
   WorldBVHRootListInit(World, 1);
   BVHInit(&World->BVHRoots[0], World->Surfaces, 0, World->SurfaceCount, 0.0, 1.0, &World->Arena);
   return;
 }
+void SceneTestCornellBox(world *World, camera *Camera, f64 AspectRatio)
+{
+  World->DefaultBackground = V3f64(0.8,0.83,0.9);
+  // TODO(MIGUEL): fix this
+  // CAMERA
+  v3f64 LookFrom = V3f64(0.0,2000.0,-100.0);
+  v3f64 LookAt   = V3f64(0.0,0.0,0.0);
+  v3f64 RelUp    = V3f64(0.0,1.0,0.0);
+  f64   DistToFocus = 150.0;
+  f64   FOV = 40.0;
+  f64   Aperture = 0.08;
+  WriteToRef(Camera, CameraInit(LookFrom, LookAt, RelUp, FOV, AspectRatio, Aperture, DistToFocus, 0.0, 1.0));
+  
+  u32 TR = WorldTextureAdd(World, TextureKind_SolidColor, V3f64(0.65,0.05,0.05), 0,0,0,0,NULL);
+  u32 TW = WorldTextureAdd(World, TextureKind_SolidColor, V3f64(0.73,0.73,0.73), 0,0,0,0,NULL);
+  u32 TG = WorldTextureAdd(World, TextureKind_SolidColor, V3f64(0.12,0.45,0.15), 0,0,0,0,NULL);
+  u32 MR = WorldMaterialAdd(World, MaterialKind_Lambert, TR,0.0,0.0);
+  u32 MW = WorldMaterialAdd(World, MaterialKind_Lambert, TW,0.0,0.0);
+  u32 MG = WorldMaterialAdd(World, MaterialKind_Lambert, TG,0.0,0.0);
+  rect RYZL = SurfaceRectYZInit(   0.0, 600.0,
+                                -300.0, 300.0, -300.0, MG);
+  rect RYZR = SurfaceRectYZInit(   0.0, 600.0,
+                                -300.0, 300.0,  300.0, MR);
+  WorldSurfaceAdd(World, SurfaceKind_RectYZ, &RYZL);
+  WorldSurfaceAdd(World, SurfaceKind_RectYZ, &RYZR);
+  
+  rect RXZB     = SurfaceRectXZInit(-300.0, 300.0,
+                                    -300.0, 300.0, 0.0, MW);
+  WorldSurfaceAdd(World, SurfaceKind_RectXZ, &RXZB);
+  
+  rect RXYF = SurfaceRectXYInit(-300.0,300.0,
+                                0.0   ,600.0, 300.0, MW);
+  WorldSurfaceAdd(World, SurfaceKind_RectXY, &RXYF);
+  
+  f64 CenterXY = 300.0;
+  f64 BToSOffsetZ = 0.0;
+  f64 SizeB = 50.0;
+  f64 SizeS = 200.0;
+  box BB = SurfaceBoxInit(V3f64(-SizeB, 0.0, -SizeB), V3f64(SizeB, 600.0, SizeB), MW);
+  box BS = SurfaceBoxInit(V3f64(-SizeS, 0.0, -SizeS), V3f64(SizeS, 200.0, SizeS), MR);
+  box BM = SurfaceBoxInit(V3f64(-SizeS*0.7, 0.0, -SizeS*0.7), V3f64(SizeS*0.7, 400.0, SizeS*0.7), MG);
+  surface *SBoxB = WorldSurfaceStaticAdd(World, SurfaceKind_Box, &BB);
+  surface *SBoxS = WorldSurfaceStaticAdd(World, SurfaceKind_Box, &BS);
+  surface *SBoxM = WorldSurfaceStaticAdd(World, SurfaceKind_Box, &BM);
+  transformed_inst XFB = SurfaceTransformedInstanceInit(TransformKind_RotateY, SBoxB, V3f64(CenterXY,0.0,0.0), Pi64/4.0);
+  transformed_inst XFS = SurfaceTransformedInstanceInit(TransformKind_Translate, SBoxS, V3f64(CenterXY,0.0,BToSOffsetZ), Pi64/4.0);
+  transformed_inst XFM = SurfaceTransformedInstanceInit(TransformKind_RotateY |
+                                                        TransformKind_Translate, SBoxM, V3f64(CenterXY,0.0,BToSOffsetZ), Pi64/4.0);
+  WorldSurfaceAdd(World, SurfaceKind_TransformedInst, &XFB);
+  WorldSurfaceAdd(World, SurfaceKind_TransformedInst, &XFS);
+  WorldSurfaceAdd(World, SurfaceKind_TransformedInst, &XFM);
+  
+  WorldBVHRootListInit(World, 1);
+  BVHInit(&World->BVHRoots[0], World->Surfaces, 0, World->SurfaceCount, 0.0, 1.0, &World->Arena);
+  return;
+}
+//void SceneCornellSmoke(world *World, camera *Camera, f64 AspectRatio) { return; } //TODO: IMPLEMENT
+//void SceneFinal(world *World, camera *Camera, f64 AspectRatio) { return; } //TODO: IMPLEMENT
+
+
 #endif //RTSCENES_H

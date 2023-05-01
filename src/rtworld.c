@@ -14,10 +14,13 @@ inline b32 WorldTextureStackFull       (world *World) { return (World->TextureNe
 inline b32 WorldNoiseStackEmpty      (world *World) { return (World->NoiseNext == World->Noises); }
 inline b32 WorldNoiseStackFull       (world *World) { return (World->NoiseNext == World->NoiseOnePastLast); }
 
-void WorldInit(world *World, v3f64 Background)
+world *WorldInit(v3f64 Background)
 {
-  world EmptyWorld = {0}; WriteToRef(World, EmptyWorld);
-  World->Arena = ArenaInit(NULL, Gigabytes(2), OSMemoryAlloc(Gigabytes(2)));
+  arena Arena = ArenaInit(NULL, Gigabytes(2), OSMemoryAlloc(Gigabytes(2)));
+  world *World = ArenaPushType(&Arena, world);
+  MemorySet(0, World, sizeof(world));
+  //arena
+  World->Arena = Arena;
   //surface
   World->SurfaceCount       = 0;
   World->SurfaceNext        = World->Surfaces;
@@ -44,7 +47,7 @@ void WorldInit(world *World, v3f64 Background)
   World->DefaultNoiseId = WorldNoiseAdd(World, NoiseKind_Perin);
   World->DefaultTexId = WorldTextureAdd(World, TextureKind_SolidColor, V3f64(1.0, 0.0, 1.0),0,0,0,0,NULL); //default texture
   World->DefaultMatId = WorldMaterialAdd(World, MaterialKind_Lambert, World->DefaultTexId, 0.0, 0.0); //default material
-  return;
+  return World;
 }
 void WorldBVHRootListInit(world *World, u32 RootCount)
 {
@@ -65,9 +68,6 @@ void WorldSurfaceAdd(world *World, surface_kind Kind, void *SurfaceData)
     } break;
     case SurfaceKind_SphereMoving: {
       NewSurface.SphereMoving = ObjCopyFromRef(sphere_moving, SurfaceData);
-    } break;
-    case SurfaceKind_Plane: {
-      NewSurface.Plane = ObjCopyFromRef(plane, SurfaceData);
     } break;
     case SurfaceKind_RectXY: {
       NewSurface.Rect = ObjCopyFromRef(rect, SurfaceData);
@@ -121,9 +121,6 @@ surface *WorldSurfaceStaticAdd(world *World, surface_kind Kind, void *SurfaceDat
     } break;
     case SurfaceKind_SphereMoving: {
       NewSurface.SphereMoving = ObjCopyFromRef(sphere_moving, SurfaceData);
-    } break;
-    case SurfaceKind_Plane: {
-      NewSurface.Plane = ObjCopyFromRef(plane, SurfaceData);
     } break;
     case SurfaceKind_RectXY: {
       NewSurface.Rect = ObjCopyFromRef(rect, SurfaceData);
