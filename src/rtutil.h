@@ -61,6 +61,19 @@ v3f64 RandUnitVector(void)
 {
   return Normalize(RandInUnitSphere());
 }
+v3f64 RandCosineDir(void)
+{
+  // listiong 16
+  v3f64 Result = {0};
+  f64 r1 = RandF64Uni();
+  f64 r2 = RandF64Uni();
+  f64 z  = SquareRoot(1.0-r2);
+  f64 phi = 2.0*Pi64*r1;
+  f64 x = Cos(phi)*SquareRoot(r2);
+  f64 y = Sin(phi)*SquareRoot(r2);
+  Result = V3f64(x, y, z);
+  return Result;
+}
 u32 *ImageGetPixel(u8 *ImageBuffer,  u32 ImageWidth, u32 x, u32 y)
 {
   u32 *Pixels = (u32 *)ImageBuffer;

@@ -15,11 +15,13 @@ v3f64 RayColor(ray Ray, s32 Depth, world *World)
   if(!WorldHit(World, &Hit, Ray, 0.001, Infintyf64(), 1)) { return World->DefaultBackground; }
   
   ray ScatteredRay = {0};
-  v3f64 Atten   = {0};
+  //v3f64 Atten   = {0};  // deprecated
   material *Mat = WorldMaterialGetFromId(World, Hit.MatId);
   texture  *Tex = WorldTextureGetFromId(World, Mat->TexId);
   v3f64     Emmited = MaterialEmmited(Mat, Tex, Hit.u, Hit.v, Hit.Pos);
-  if(!MaterialScatter(Mat, Tex, Ray, Hit, &Atten, &ScatteredRay))
+  f64       Pdf = 0.0;
+  v3f64     Albedo = {0};
+  if(!MaterialScatter(Mat, Tex, Ray, Hit, &Albedo, &ScatteredRay, &Pdf))
   {
     //NOTE: for dark scenes having a low emmision color values is making the image black when
     //      the resolution is high. It seems like increasing the color emmision values help.
@@ -35,7 +37,24 @@ v3f64 RayColor(ray Ray, s32 Depth, world *World)
     return Emmited;
   }
   
+  //LIGHT SAMPLING
+  // listing 19
+  v3f64 OnLight = V3f64(RandF64Range(213.0, 343.0), 554.0, RandF64Range(227.0, 332.0));
+  v3f64 ToLight = Sub(OnLight, Hit.Pos);
+  f64 DistSquared = LengthSquared(ToLight);
+  ToLight =  Normalize(ToLight);
+  
+  if(Dot(ToLight, Hit.Normal)<0) return Emmited;
+  f64 LightArea = (343.0-213.0)*(332.0-227.0);
+  f64 LightCosine = Abs(ToLight.y);
+  if(LightCosine<0.0000001) return Emmited;
+  
+  Pdf = DistSquared/(LightCosine*LightArea);
+  ScatteredRay = RayInit(Hit.Pos, ToLight, Ray.Time);
+  //LIGHT SAMPLING
+  
   v3f64 NextRayColor = RayColor(ScatteredRay, Depth - 1, World);
-  v3f64 Result       = Add(Emmited, Mul(Atten, NextRayColor));
+  f64   ScatterPdf   = MaterialScatterPdf(Mat, Ray, Hit, ScatteredRay);
+  v3f64 Result       = Add(Emmited, Scale(Mul(Albedo, NextRayColor), ScatterPdf/Pdf));
   return Result;
 }

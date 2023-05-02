@@ -8,6 +8,7 @@
 #define Tau64 (2.0*3.1415926535897932385)
 
 #define ARG1(a, ...) (a)
+#define ARG2(a, b, ...) (b)
 
 #define Mul(a, b)     _Generic((a), v3f64: Mul_v3f64)((a), (b))
 #define Dot(a, b)     _Generic((a), v3f64: Dot_v3f64)((a), (b))
@@ -230,5 +231,12 @@ r3f64 R3f64_2v3f64(v3f64 min, v3f64 max)
   r3f64 r = { .min = min, .max = max };
   return r;
 }
+
+typedef union m3f64 m3f64;
+union m3f64
+{
+  struct { v3f64 u; v3f64 v; v3f64 w; };
+  v3f64 uvw[3];
+};
 
 #endif //RTMATH_H

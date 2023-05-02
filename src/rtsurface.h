@@ -26,7 +26,7 @@ enum material_kind
   MaterialKind_Metal,
   MaterialKind_Dielectric,
   MaterialKind_DiffuseLight,
-  //MaterialKind_Isotropic,
+  MaterialKind_Isotropic,
 };
 typedef struct surface surface;
 typedef struct plane plane;
@@ -136,9 +136,13 @@ struct hit
   u32  MatId;
   b32  IsFrontFace;
 };
-b32   MaterialScatter(material *Material, texture *Texture, ray Ray, hit Hit, v3f64 *Atten, ray *Scattered);
-v3f64 MaterialEmmited(material *Material, texture *Texture, f64 u, f64 v, v3f64 Pos);
-v3f64 SphereMovingGetPos(sphere_moving *SphereMoving, f64 Time);
+
 b32   SurfaceListHit(surface *Surfaces, u32 SurfaceCount, hit *Hit, ray Ray, f64 Mint, f64 Maxt);
 b32   SurfaceHit(surface *Surface, hit *Hit, ray Ray, f64 Mint, f64 Maxt);
+
+b32   MaterialScatter(material *Material, texture *Texture, ray Ray, hit Hit, v3f64 *Atten, ray *Scattered, f64 *Pdf);
+f64   MaterialScatterPdf(material *Material, ray Ray, hit Hit, ray Scattered);
+v3f64 MaterialEmmited(material *Material, texture *Texture, f64 u, f64 v, v3f64 Pos);
+
+v3f64 SphereMovingGetPos(sphere_moving *SphereMoving, f64 Time);
 #endif //RTSURFACE_H

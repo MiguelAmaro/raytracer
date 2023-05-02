@@ -16,6 +16,7 @@
 #include "rtsurface.h"
 #include "rtworld.h"
 #include "rtbvh.h"
+#include "rtintegrator.h"
 #include "rtwork.h"
 // source
 #include "rtmemory.c"
@@ -68,14 +69,9 @@ b32 RenderTile(work_queue *Queue)
   LockedAddAndGetLastValue(&Queue->TileRetiredCount, 1);
   return 1;
 }
-int main(void)
+
+void MonteCarloPiEstimateNaive(void)
 {
-  u8 wd[256] = {0};
-  fprintf(stderr, "hello raytracer [%s]\n", OSGetWorkingDir(wd, 256));
-  OSEntropyInit();
-  RandSetSeed();
-#if 0
-  int N = 1000;
   int InsideCircle = 0;
   int runs = 0;
   while(1)
@@ -91,12 +87,60 @@ int main(void)
     }
   }
   return;
+}
+void MonteCarloPiEstimateStratifiedSamples(void)
+{
+  int InsideCircle = 0;
+  int InsideCircleStratified = 0;
+  int SqrtN = 10000;
+  for(int i=0;i<SqrtN;i++)
+  {
+    for(int j=0;j<SqrtN;j++)
+    {
+      f64 x = RandF64Bi();
+      f64 y = RandF64Bi();
+      if(x*x + y*y < 1) InsideCircle++;
+      x = 2.0*((i + RandF64Uni())/(f64)SqrtN) - 1.0;
+      y = 2.0*((j + RandF64Uni())/(f64)SqrtN) - 1.0;
+      if(x*x + y*y < 1) InsideCircleStratified++;
+    }
+  }
+  printf("\rEstmate(stratified) of Pi = %f\n", 4.0*(f64)InsideCircleStratified/(f64)(SqrtN*SqrtN));
+  return;
+}
+f64 ProbabilityDensityFunc(f64 x)
+{
+  return 3.0*x*x/8.0;
+}
+void MonteCarloIntegration(void)
+{
+  int N = 1000000;
+  f64 sum = 0.0;
+  for(int i=0;i<N;i++)
+  {
+    f64 x = Power(RandF64Range(0.0, 8.0), 1.0/3.0);
+    sum += x*x/ProbabilityDensityFunc(x);
+  }
+  printf("\rIntegration of f() = x*x <= %f\n", 2.0*(f64)sum/(f64)N);
+  return;
+}
+int main(void)
+{
+  u8 wd[256] = {0};
+  fprintf(stderr, "hello raytracer [%s]\n", OSGetWorkingDir(wd, 256));
+  OSEntropyInit();
+  RandSetSeed();
+#if 0
+  //MonteCarloPiEstimateNaive();
+  MonteCarloPiEstimateStratifiedSamples();
+  MonteCarloIntegration();
+  return;
   //End
 #endif
   f64 AspectRatio = 1.0;//16.0/9.0;
-  s32 ImageWidth  = 400;
+  s32 ImageWidth  = 800;
   s32 ImageHeight = (int)(ImageWidth/AspectRatio);
-  s32 SamplesPerPixel = 200;
+  s32 SamplesPerPixel = 100;
   s32 MaxDepth = 50;
   
   // WORLD
@@ -104,13 +148,13 @@ int main(void)
   
   // SCENE
   camera Camera = {0};
-  //SceneRandom(&World, &Camera, AspectRatio);
-  //SceneBVHTest(&World, &Camera, AspectRatio);
+  SceneRandom(World, &Camera, AspectRatio);
+  //SceneBVHTest(World, &Camera, AspectRatio);
   //SceneTwoSpheres(&World, &Camera, AspectRatio); 
-  //SceneTwoPerlinSpheres(&World, &Camera, AspectRatio);
+  //SceneTwoPerlinSpheres(World, &Camera, AspectRatio);
   //SceneEarthSolo(&World, &Camera, AspectRatio);
-  //SceneSimpleLight(&World, &Camera, AspectRatio);
-  SceneCornellBox(World, &Camera, AspectRatio);
+  //SceneSimpleLight(World, &Camera, AspectRatio);
+  //SceneCornellBox(World, &Camera, AspectRatio);
   //SceneTestCornellBox(World, &Camera, AspectRatio);
   
   // WORK

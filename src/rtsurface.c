@@ -141,18 +141,44 @@ f64 Reflectance(f64 Cosine, f64 IndexOfRefraction)
   f64 Result = R0+(1.0-R0)*Power((1.0-Cosine), 5);
   return Result;
 }
-b32 MaterialScatter(material *Material, texture *Texture, ray Ray, hit Hit, v3f64 *Atten, ray *Scattered)
+f64 MaterialScatterPdf(material *Material, ray Ray, hit Hit, ray Scattered)
+{
+  //NOTE: listing 11
+  f64 Result = 1.0;
+  switch(Material->Kind)
+  {
+    case MaterialKind_Lambert: {
+      f64 Cosine = Dot(Hit.Normal, Normalize(Scattered.Dir));
+      Result = Cosine < 0? 0:Cosine/Pi64;
+    }break;
+    //case MaterialKind_Metal: { Assert(!"Invalid Codepath"); }break;
+    //case MaterialKind_Dielectric: { Assert(!"Invalid Codepath"); }break;
+    //case MaterialKind_DiffuseLight: { Assert(!"Invalid Codepath"); }break;
+    //case MaterialKind_Isotropic: { Assert(!"Invalid Codepath"); }break;
+    default: { 
+      //temp
+      f64 Cosine = Dot(Hit.Normal, Normalize(Scattered.Dir));
+      Result = Cosine < 0? 0:Cosine/Pi64;
+    }break;
+  }
+  
+  return Result;
+}
+b32 MaterialScatter(material *Material, texture *Texture, ray Ray, hit Hit, v3f64 *Atten, ray *Scattered, f64 *Pdf)
 {
   b32 Result = SCATTER_IGNORE;
   switch(Material->Kind)
   {
     case MaterialKind_Lambert:
     {
-      v3f64 ScatterDir = Add(Hit.Normal, RandUnitVector());
+      //listing 11 and listing 18 DONE!!!!
+      m3f64 Basis = OrthoNormBasisFromNormal(Hit.Normal);
+      v3f64 ScatterDir = OrthoNormBasisGetLocal(Basis, RandUnitVector());
       if(NearZero(ScatterDir)) { ScatterDir = Hit.Normal; }
       
       WriteToRef(Scattered, RayInit(Hit.Pos, ScatterDir, Ray.Time));
-      WriteToRef(Atten, TextureGetColor(Texture, Hit.u, Hit.v, Hit.Pos));
+      WriteToRef(Atten, TextureGetColor(Texture, Hit.u, Hit.v, Hit.Pos)); //listing 11 has this as albedo
+      WriteToRef(Pdf, Dot(Basis.w, Scattered->Dir)/Pi64);
       Result = SCATTER_PROCESS;
     } break;
     case MaterialKind_Metal:
