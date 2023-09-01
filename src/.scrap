@@ -188,3 +188,83 @@ void WorldSphereMovingAdd(world *World, v3f64 Pos0, v3f64 Pos1, f64 Time0, f64 T
   //f64 t = 0.5*(UnitDir.y+1.0);
   //v3f64 r = Lerp(V3f64(1,1,1), V3f64(0.5,0.7,1.0), t);
   
+
+void MonteCarloPiEstimateNaive(void)
+{
+  int InsideCircle = 0;
+  int runs = 0;
+  while(1)
+  {
+    runs++;
+    f64 x = RandF64Bi();
+    f64 y = RandF64Bi();
+    if(x*x + y*y < 1) InsideCircle++;
+    if(runs%100000 == 0) 
+    {
+      printf("\r                                                       ");
+      printf("\rEstmate of Pi = %f", 4.0*((f64)InsideCircle)/(f64)runs);
+    }
+  }
+  return;
+}
+void MonteCarloPiEstimateStratifiedSamples(void)
+{
+  int InsideCircle = 0;
+  int InsideCircleStratified = 0;
+  int SqrtN = 10000;
+  for(int i=0;i<SqrtN;i++)
+  {
+    for(int j=0;j<SqrtN;j++)
+    {
+      f64 x = RandF64Bi();
+      f64 y = RandF64Bi();
+      if(x*x + y*y < 1) InsideCircle++;
+      x = 2.0*((i + RandF64Uni())/(f64)SqrtN) - 1.0;
+      y = 2.0*((j + RandF64Uni())/(f64)SqrtN) - 1.0;
+      if(x*x + y*y < 1) InsideCircleStratified++;
+    }
+  }
+  printf("\rEstmate(stratified) of Pi = %f\n", 4.0*(f64)InsideCircleStratified/(f64)(SqrtN*SqrtN));
+  return;
+}
+f64 ProbabilityDensityFunc(f64 x)
+{
+  return 3.0*x*x/8.0;
+}
+void MonteCarloIntegration(void)
+{
+  int N = 1000000;
+  f64 sum = 0.0;
+  for(int i=0;i<N;i++)
+  {
+    f64 x = Power(RandF64Range(0.0, 8.0), 1.0/3.0);
+    sum += x*x/ProbabilityDensityFunc(x);
+  }
+  printf("\rIntegration of f() = x*x <= %f\n", 2.0*(f64)sum/(f64)N);
+  return;
+}
+
+#if 0
+  //MonteCarloPiEstimateNaive();
+  MonteCarloPiEstimateStratifiedSamples();
+  MonteCarloIntegration();
+  return;
+  //End
+#endif
+
+
+
+  //LIGHT SAMPLING
+  v3f64 OnLight = V3f64(RandF64Range(213.0, 343.0), 554.0, RandF64Range(227.0, 332.0));
+  v3f64 ToLight = Sub(OnLight, HitInfo.Pos);
+  f64 DistSquared = LengthSquared(ToLight);
+  ToLight =  Normalize(ToLight);
+  
+  if(Dot(ToLight, HitInfo.Normal)<0) return Emmited;
+  f64 LightArea = (343.0-213.0)*(332.0-227.0);
+  f64 LightCosine = Abs(ToLight.y);
+  if(LightCosine<0.0000001) return Emmited;
+  
+  Pdf = DistSquared/(LightCosine*LightArea);
+  ray ScatteredRay = RayInit(HitInfo.Pos, ToLight, Ray.Time);
+  //LIGHT SAMPLING

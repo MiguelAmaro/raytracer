@@ -1,99 +1,136 @@
 #ifndef RTINTEGRATOR_H
 #define RTINTEGRATOR_H
 
-typedef enum pdf_kind pdf_kind;
-enum pdf_kind
-{
-  PdfKind_Cosine,
-  PdfKind_Surface,
-};
-typedef struct pdf pdf;
-struct pdf
-{
-  pdf_kind Kind;
-  m3f64    Basis; //is ortho normal ofcourse
-};
 
-// ORTHONORMAL BASIS
-#define OrthoNormBasisGetLocal(...) _Generic(ARG2(__VA_ARGS__), f64:   OrthoNormBasisGetLocal_3f64, v3f64: OrthoNormBasisGetLocal_v3f64)(__VA_ARGS__)
-v3f64 OrthoNormBasisGetLocal_3f64(m3f64 Basis, f64 x, f64 y, f64 z)
+
+f64 PdfGetValue(pdf *Pdf, v3f64 w);
+v3f64 PdfGenerate(pdf *Pdf);
+
+//~ INITIALIZERS
+pdf PdfCosineInit(pdf_kind Kind, v3f64 w)
 {
-  v3f64 Result = Add(Add(Scale(Basis.u, x),Scale(Basis.v, y)),Scale(Basis.w, z));
+  pdf Result = { .Kind = Kind, .Basis = OrthoNormBasisFromNormal(w) };
   return Result;
 }
-v3f64 OrthoNormBasisGetLocal_v3f64(m3f64 Basis, v3f64 a)
+pdf PdfSurfaceInit(pdf_kind Kind, surface *Surface, v3f64 Origin)
 {
-  v3f64 Result = Add(Add(Scale(Basis.u, a.x),Scale(Basis.v, a.y)),Scale(Basis.w, a.z));
+  pdf Result = { .Kind = Kind, .Surface = Surface, .Origin = Origin };
   return Result;
 }
-m3f64 OrthoNormBasisInit(v3f64 u, v3f64 v, v3f64 w)
+pdf PdfMixInit(pdf_kind Kind, pdf *MixPdfA, pdf *MixPdfB)
 {
-  m3f64 Result = {u,v,w};
+  pdf Result = { .Kind = Kind, .MixPdf[0] = MixPdfA, .MixPdf[1] = MixPdfB };
   return Result;
 }
-m3f64 OrthoNormBasisFromNormal(v3f64 n)
+pdf PdfInit(pdf_kind Kind, pdf *MixPdfA, pdf *MixPdfB, surface *Surface, v3f64 Origin, v3f64 w)
 {
-  m3f64 Result = {0};
-  Result.w = Normalize(n);
-  v3f64 a = (Abs(Result.w.x)>0.9)?V3f64(0,1,0):V3f64(1,0,0);
-  Result.v = Normalize(Cross(Result.w, a));
-  Result.u = Normalize(Cross(Result.w, Result.v));
+  pdf Result = {0};
+  switch(Kind)
+  {
+    case PdfKind_Cosine: {
+      Result = PdfCosineInit(Kind, w);
+    } break;
+    case PdfKind_Mixture: {
+      Result = PdfMixInit(Kind, MixPdfA, MixPdfB);
+    } break;
+    case PdfKind_Surface: {
+      Result = PdfSurfaceInit(Kind, Surface, Origin);
+    } break;
+  }
   return Result;
 }
-// END ORTHONORMAL BASIS
 
-
-//UNIDIRECTIONAL LIGHT
-typedef struct flip_face flip_face;
-struct flip_face
-{
-  surface *Surface;
-};
-b32 SurfaceHitFlipFace(void)
-{
-  Assert(!"Not Implemented");
-  return 0;
-}
-b32 AABBInitHitFlipFace(void)
-{
-  Assert(!"Not Implemented");
-  return 0;
-}
-//END UNIDIRECTIONAL LIGHT
-
-
-void PdfInit(pdf_kind Kind)
-{
-  return;
-}
-///MOVE TO UTILS
-
-///MOVE TO UTILS
-f64 PdfCosinePdf(pdf *Pdf, v3f64 w)
+//~ GET VALUE
+f64 PdfCosineGetValue(pdf *Pdf, v3f64 w)
 {
   //listing 24
   f64 Cosine = Dot(Normalize(w), Pdf->Basis.w);
   f64 Result = (Cosine<0.0)?0.0:Cosine/Pi64;
   return Result;
 }
-f64 PdfGetValue(pdf *Pdf, v3f64 w)
+f64 PdfSurfaceGetValue(pdf *Pdf, v3f64 w)
 {
-  //listing 24
-  f64 Result = PdfCosinePdf(Pdf, w);
+  f64 Result = SurfaceGetPdfValue(Pdf->Surface, Pdf->Origin, w);
   return Result;
 }
-v3f64 PdfGenerate(pdf *Pdf, v3f64 w)
+f64 PdfMixtureGetValue(pdf *Pdf, v3f64 w)
 {
-  //listing 24
-  v3f64 Result = OrthoNormBasisGetLocal(Pdf->Basis, w);
+  f64 Result = (0.5*PdfGetValue(Pdf->MixPdf[0], w) + 
+                0.5*PdfGetValue(Pdf->MixPdf[1], w));
+  return Result;
+}
+f64 PdfGetValue(pdf *Pdf, v3f64 w)
+{
+  f64 Result = 0.0;
+  switch(Pdf->Kind)
+  {
+    case PdfKind_Cosine: {
+      Result = PdfCosineGetValue(Pdf, w);
+    } break;
+    case PdfKind_Surface: {
+      Result = PdfSurfaceGetValue(Pdf, w);
+    } break;
+    case PdfKind_Mixture: {
+      Result = PdfMixtureGetValue(Pdf, w);
+    } break;
+  }
   return Result;
 }
 
+//~ GENERATE
+v3f64 PdfCosineGenerate(pdf *Pdf)
+{
+  //listing 24
+  v3f64 Result = OrthoNormBasisGetLocal(Pdf->Basis, RandCosineDir());
+  return Result;
+}
+v3f64 PdfMixtureGenerate(pdf *Pdf)
+{
+  v3f64 Result = {0};
+  f64 Random = RandF64Uni();
+  if(Random<0.5)
+  {
+    Result = PdfGenerate(Pdf->MixPdf[0]);
+  } else
+  {
+    Result = PdfGenerate(Pdf->MixPdf[1]);
+  }
+  return Result;
+}
+v3f64 PdfSurfaceGenerate(pdf *Pdf)
+{
+  v3f64 Result = SurfaceGenRandom(Pdf->Surface, Pdf->Origin);
+  return Result;
+}
+v3f64 PdfGenerate(pdf *Pdf)
+{
+  v3f64 Result = {0};
+  switch(Pdf->Kind)
+  {
+    case PdfKind_Cosine: {
+      Result = PdfCosineGenerate(Pdf);
+    } break;
+    case PdfKind_Surface: {
+      Result = PdfSurfaceGenerate(Pdf);
+    } break;
+    case PdfKind_Mixture: {
+      Result = PdfMixtureGenerate(Pdf);
+    } break;
+  }
+  return Result;
+}
+
+
+// Next Week
+//TODO : listing 76 WORKING...
+
+// Rest of your life
 //TODO : listing 16 DONE!!!!
 //TODO : listing 17 DONE!!!!
 //TODO : listing 18 DONE!!!!
 //TODO : listing 19
 //TODO : listing 20
+//TODO : listing 21 WORKING...
 //TODO : listing 25
 
 

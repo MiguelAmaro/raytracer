@@ -74,6 +74,24 @@ v3f64 RandCosineDir(void)
   Result = V3f64(x, y, z);
   return Result;
 }
+v3f64 RandToSphere(f64 Radius, f64 DistSquared)
+{
+  v3f64 Result = {0};
+  f64 r1 = RandF64Uni();
+  f64 r2 = RandF64Uni();
+  
+  f64 RadicandA = 1.0-Radius*Radius/DistSquared;
+  RadicandA = RadicandA<0.0?0.0:RadicandA; // TODO(MIGUEL): Figure out what to do here?
+  f64 z  = 1.0 + r2*(SquareRoot(RadicandA) - 1.0);
+  f64 RadicandB = 1.0-z*z;
+  RadicandB = RadicandB<0.0?0.0:RadicandB;
+  f64 phi = 2.0*Pi64*r1;
+  f64 x = Cos(phi)*SquareRoot(RadicandB);
+  f64 y = Sin(phi)*SquareRoot(RadicandB);
+  
+  Result = V3f64(x, y, z);
+  return Result;
+}
 u32 *ImageGetPixel(u8 *ImageBuffer,  u32 ImageWidth, u32 x, u32 y)
 {
   u32 *Pixels = (u32 *)ImageBuffer;
@@ -90,8 +108,25 @@ u8 *ImageLoadFromFile(const char *Path, u32 *Width, u32 *Height, u32 *BytesPerPi
   stbi_image_free(Data);
   return Result;
 }
+b32 IsNanF64(f64 a)
+{
+  b32 r = (a != a);
+  return r;
+}
+b32 HasNanV3(v3f64 a)
+{
+  b32 r = (IsNanF64(a.x) || IsNanF64(a.y) || IsNanF64(a.z));
+  return r;
+}
 void WriteColor(u32 *Pixel, v3f64 Color, s32 SamplesPerPixel)
 {
+  //if(HasNanV3(Color)) { Color = V3f64(1,0,1); }
+  
+  // nan test and correction
+  if(Color.r != Color.r) Color.r = 0.0;
+  if(Color.g != Color.g) Color.g = 0.0;
+  if(Color.b != Color.b) Color.b = 0.0;
+  
   Color = SquareRoot(Scale(Color, 1.0/(f64)SamplesPerPixel));
   
   u8 r = (u8)(255.999*Clamp(Color.r, 0.0, 0.999));

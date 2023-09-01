@@ -1,5 +1,6 @@
 
 //~ SURFACE INITIALIZERS
+
 inline plane SurfacePlaneInit(v3f64 Normal, f64 Dist,  u32 MatId)
 {
   plane Result = { .Normal = Normal, .Dist = Dist, .MatId = MatId };
@@ -93,13 +94,42 @@ inline transformed_inst SurfaceTransformedInstanceInit(transform_kind Kind, surf
 }
 inline constant_medium SurfaceConstantMediumInit(surface *Surface, f64 d, u32 MatId)
 {
-  //TODO: finish
+  //TODO: assert that material from matid is an isotropic
   constant_medium Result = { .Boundary = Surface, .NegInvDensity = d, .MatId = MatId };
   return Result;
+}
+b32 SurfaceFlipFaceInit(surface *Surface)
+{
+  Assert(!"Not Implemented");
+  return 0;
 }
 
 
 //~ HELPERS
+v3f64 OrthoNormBasisGetLocal_3f64(m3f64 Basis, f64 x, f64 y, f64 z)
+{
+  v3f64 Result = Add(Add(Scale(Basis.u, x),Scale(Basis.v, y)),Scale(Basis.w, z));
+  return Result;
+}
+v3f64 OrthoNormBasisGetLocal_v3f64(m3f64 Basis, v3f64 a)
+{
+  v3f64 Result = Add(Add(Scale(Basis.u, a.x),Scale(Basis.v, a.y)),Scale(Basis.w, a.z));
+  return Result;
+}
+m3f64 OrthoNormBasisInit(v3f64 u, v3f64 v, v3f64 w)
+{
+  m3f64 Result = {u,v,w};
+  return Result;
+}
+m3f64 OrthoNormBasisFromNormal(v3f64 n)
+{
+  m3f64 Result = {0};
+  Result.w = Normalize(n);
+  v3f64 a = (Abs(Result.w.x)>0.9)?V3f64(0,1,0):V3f64(1,0,0);
+  Result.v = Normalize(Cross(Result.w, a));
+  Result.u = Normalize(Cross(Result.w, Result.v));
+  return Result;
+}
 inline v3f64 SphereMovingGetPos(sphere_moving *SphereMoving, f64 Time)
 {
   v3f64 v = Sub(SphereMoving->Pos1,SphereMoving->Pos0);
@@ -115,7 +145,7 @@ inline void SphereGetUV(v3f64 Pos, f64 *u, f64 *v)
   WriteToRef(v, theta/Pi64 );
   return;
 }
-inline void HitSetFaceNormal(hit *Hit, ray Ray, v3f64 OutwardNormal)
+inline void HitSetFaceNormal(hit_info *Hit, ray Ray, v3f64 OutwardNormal)
 {
   Hit->IsFrontFace = Dot(Ray.Dir, OutwardNormal)<0;
   Hit->Normal = Hit->IsFrontFace?OutwardNormal:Scale(OutwardNormal,-1.0);
@@ -141,91 +171,195 @@ f64 Reflectance(f64 Cosine, f64 IndexOfRefraction)
   f64 Result = R0+(1.0-R0)*Power((1.0-Cosine), 5);
   return Result;
 }
-f64 MaterialScatterPdf(material *Material, ray Ray, hit Hit, ray Scattered)
+f64 SurfaceGetPdfValue(surface *Surface, v3f64 Origin, v3f64 v)
+{
+  f64 Result = 1.0;
+  switch(Surface->Kind)
+  {
+    case SurfaceKind_RectXZ: {
+      hit_info HitInfo = {0};
+      if(!SurfaceRectYZHit(&Surface->Rect, &HitInfo, RayInit(Origin, v, 0.0), 0.001, Infintyf64())) 
+      {
+        return 0.0;
+      }
+      r3f64 p = Surface->Rect.Points;
+      f64 Area = (p.x1 - p.x0)*(p.z1 - p.z0);
+      f64 DistSquared = HitInfo.t*HitInfo.t*LengthSquared(v);
+      f64 Cosine = Abs(Dot(v, HitInfo.Normal))/Length(v);
+      Result = DistSquared/(Cosine*Area);
+    } break;
+    case SurfaceKind_Sphere: {
+      hit_info HitInfo = {0};
+      if(!SurfaceSphereHit(&Surface->Sphere, &HitInfo, RayInit(Origin, v, 0.0), 0.001, Infintyf64())) 
+      {
+        return 0.0;
+      }
+      f64 SquaredRadius = Surface->Sphere.Radius*Surface->Sphere.Radius;
+      f64 SquaredDist = LengthSquared(Sub(Surface->Sphere.Pos,Origin));
+      // TODO(MIGUEL): It seems that that it is not reasonable that radius squared would be less than
+      //               the squared distance of the ray origin and the sphere pos. So the ratio will always
+      //               be greater than one causing the radicand to be negative.
+      //               FIGURE OUT THE INTUITION FROM THE BOOK
+      f64 Radicand = 1.0-SquaredRadius/SquaredDist;
+      Radicand = Radicand<0.0?0.0:Radicand; 
+      f64 CosThetaMax = SquareRoot(Radicand);
+      f64 SolidAngle  = 2.0*Pi64*(1.0-CosThetaMax);
+      Result = 1.0/SolidAngle;
+    } break;
+    case SurfaceKind_SphereMoving: {
+      Result = 1.0;
+    } break;
+    case SurfaceKind_RectXY: {
+      Result = 1.0;
+    } break;
+    case SurfaceKind_RectYZ: {
+      Result = 1.0;
+    } break;
+    case SurfaceKind_Box: {
+      Result = 1.0;
+    } break;
+    case SurfaceKind_TransformedInst: {
+      Result = 1.0;
+    } break;
+    case SurfaceKind_FlipFace: {
+      Result = 1.0;
+    } break;
+    case SurfaceKind_ConstantMedium: {
+      Result = 1.0;
+    } break;
+    case SurfaceKind_BVHNode: {
+      Result = 1.0;
+    } break;
+  }
+  return Result;
+}
+v3f64 SurfaceGenRandom(surface *Surface, v3f64 Origin)
+{
+  v3f64 Result = {0};
+  switch(Surface->Kind)
+  {
+    case SurfaceKind_RectXZ: {
+      r3f64 p = Surface->Rect.Points;
+      v3f64 RandPoint = V3f64(RandF64Range(p.x0, p.x1), Surface->Rect.Offset, RandF64Range(p.z0, p.z1));
+      Result = Sub(RandPoint, Origin);
+    };
+    case SurfaceKind_Sphere: {
+      v3f64 Dir =  Sub(Surface->Sphere.Pos, Origin);
+      f64   DistSquared = LengthSquared(Dir);
+      m3f64 uvw = OrthoNormBasisFromNormal(Dir);
+      Result = OrthoNormBasisGetLocal(uvw, RandToSphere(Surface->Sphere.Radius, DistSquared)); 
+    };
+    case SurfaceKind_SphereMoving: {};
+    case SurfaceKind_RectXY: {};
+    case SurfaceKind_RectYZ: {};
+    case SurfaceKind_Box: {};
+    case SurfaceKind_TransformedInst: {};
+    case SurfaceKind_FlipFace: {};
+    case SurfaceKind_ConstantMedium: {};
+    case SurfaceKind_BVHNode: {};
+  }
+  return Result;
+}
+f64 MaterialScatterPdf(material *Material, hit_info HitInfo, ray Scattered)
 {
   //NOTE: listing 11
   f64 Result = 1.0;
   switch(Material->Kind)
   {
     case MaterialKind_Lambert: {
-      f64 Cosine = Dot(Hit.Normal, Normalize(Scattered.Dir));
-      Result = Cosine < 0? 0:Cosine/Pi64;
+      f64 Cosine = Dot(HitInfo.Normal, Normalize(Scattered.Dir));
+      Result = (Cosine < 0)? 0:Cosine/Pi64;
     }break;
-    //case MaterialKind_Metal: { Assert(!"Invalid Codepath"); }break;
-    //case MaterialKind_Dielectric: { Assert(!"Invalid Codepath"); }break;
-    //case MaterialKind_DiffuseLight: { Assert(!"Invalid Codepath"); }break;
-    //case MaterialKind_Isotropic: { Assert(!"Invalid Codepath"); }break;
-    default: { 
-      //temp
-      f64 Cosine = Dot(Hit.Normal, Normalize(Scattered.Dir));
-      Result = Cosine < 0? 0:Cosine/Pi64;
+    case MaterialKind_Metal: {
+      Result = 1.0;
+    }break;
+    case MaterialKind_Dielectric: {
+      Result = 1.0;
+    }break;
+    case MaterialKind_DiffuseLight: { 
+      Result = 1.0;
+    }break;
+    case MaterialKind_Isotropic: { 
+      Result = 1.0;
     }break;
   }
   
   return Result;
 }
-b32 MaterialScatter(material *Material, texture *Texture, ray Ray, hit Hit, v3f64 *Atten, ray *Scattered, f64 *Pdf)
+
+b32 MaterialScatter(material *Material, texture *Texture, ray Ray, hit_info *HitInfo, scatter_info *ScatterInfo, scratch *Scratch)
 {
   b32 Result = SCATTER_IGNORE;
   switch(Material->Kind)
   {
     case MaterialKind_Lambert:
     {
-      //listing 11 and listing 18 DONE!!!!
-      m3f64 Basis = OrthoNormBasisFromNormal(Hit.Normal);
-      v3f64 ScatterDir = OrthoNormBasisGetLocal(Basis, RandUnitVector());
-      if(NearZero(ScatterDir)) { ScatterDir = Hit.Normal; }
-      
-      WriteToRef(Scattered, RayInit(Hit.Pos, ScatterDir, Ray.Time));
-      WriteToRef(Atten, TextureGetColor(Texture, Hit.u, Hit.v, Hit.Pos)); //listing 11 has this as albedo
-      WriteToRef(Pdf, Dot(Basis.w, Scattered->Dir)/Pi64);
+      pdf *NewPdf = ArenaPushType(Scratch->Arena, pdf);
+      WriteToRef(NewPdf, PdfCosineInit(PdfKind_Cosine, HitInfo->Normal));
+      ScatterInfo->IsSpecular = 0;
+      ScatterInfo->Atten = TextureGetColor(Texture, HitInfo->u, HitInfo->v, HitInfo->Pos);
+      ScatterInfo->Pdf = NewPdf;
       Result = SCATTER_PROCESS;
     } break;
     case MaterialKind_Metal:
     {
-      v3f64 Reflected = Reflect(Normalize(Ray.Dir), Hit.Normal);
-      WriteToRef(Scattered, RayInit(Hit.Pos, Add(Reflected, Scale(RandInUnitSphere(), Material->Fuzz)), Ray.Time));
-      WriteToRef(Atten, TextureGetColor(Texture, Hit.u, Hit.v, Hit.Pos));
-      Result = (Dot(Scattered->Dir, Hit.Normal)>0)?SCATTER_PROCESS:SCATTER_IGNORE;
+      v3f64 Reflected = Reflect(Normalize(Ray.Dir), HitInfo->Normal);
+      v3f64 Albedo    = TextureGetColor(Texture, HitInfo->u, HitInfo->v, HitInfo->Pos);
+      ScatterInfo->SpecularRay = RayInit(HitInfo->Pos, Add(Reflected, Scale(RandInUnitSphere(), Material->Fuzz)), Ray.Time);
+      ScatterInfo->Atten = Albedo;
+      ScatterInfo->IsSpecular = 1;
+      ScatterInfo->Pdf = NULL;
+      Result = SCATTER_PROCESS;
     } break;
     case MaterialKind_Dielectric:
     {
-      WriteToRef(Atten, V3f64(1.0,1.0,1.0));
-      f64 RefractRatio = Hit.IsFrontFace?(1.0/Material->IndexOfRefraction):Material->IndexOfRefraction;
+      ScatterInfo->IsSpecular = 1;
+      ScatterInfo->Pdf = NULL;
+      ScatterInfo->Atten = V3f64(1,1,1);
+      f64 RefractRatio = HitInfo->IsFrontFace?(1.0/Material->IndexOfRefraction):Material->IndexOfRefraction;
+      
+      //-
       v3f64 UnitDir   = Normalize(Ray.Dir);
-      f64 CosTheta = Min(Dot(Scale(UnitDir, -1.0), Hit.Normal), 1.0);
+      f64 CosTheta = Min(Dot(Scale(UnitDir, -1.0), HitInfo->Normal), 1.0);
       f64 SinTheta = SquareRoot(1.0 - CosTheta*CosTheta);
       b32 CannotRefract = (RefractRatio*SinTheta>1.0);
       v3f64 Dir = {0};
-      if(CannotRefract || Reflectance(CosTheta, RefractRatio)>RandF64Uni()) //should it be randuni or randbi
-      { Dir = Reflect(UnitDir, Hit.Normal); }
+      if(CannotRefract || Reflectance(CosTheta, RefractRatio)>RandF64Uni()) //should it be randuni or randbi??
+      { Dir = Reflect(UnitDir, HitInfo->Normal); }
       else
-      { Dir = Refract(UnitDir, Hit.Normal, RefractRatio); }
-      WriteToRef(Scattered, RayInit(Hit.Pos, Dir, Ray.Time));
+      { Dir = Refract(UnitDir, HitInfo->Normal, RefractRatio); }
+      //-
+      ScatterInfo->SpecularRay = RayInit(HitInfo->Pos, Dir, Ray.Time);
       Result = SCATTER_PROCESS;
     } break;
     case MaterialKind_DiffuseLight:
     {
-      WriteToRef(Atten, V3f64(1.0,1.0,1.0));
+      ScatterInfo->Atten = V3f64(1.0,1.0,1.0);
       Result = SCATTER_IGNORE;
+    } break;
+    case MaterialKind_Isotropic:
+    {
+      //WriteToRef(Scattered, RayInit(HitInfo->Pos, RandInUnitSphere(), Ray.Time));
+      //WriteToRef(Atten, TextureGetColor(Texture, HitInfo->u,HitInfo->v,HitInfo->Pos));
+      Result = SCATTER_PROCESS;
     } break;
   }
   return Result;
 }
-v3f64 MaterialEmmited(material *Material, texture *Texture, f64 u, f64 v, v3f64 Pos)
+v3f64 MaterialEmmited(texture *Texture, hit_info Hit)
 {
   v3f64 Result = V3f64(0,0,0);
-  if(Material->Kind==MaterialKind_DiffuseLight)
+  if(Hit.IsFrontFace)
   {
-    Result = Scale(TextureGetColor(Texture, u, v, Pos), 1.0);
+    Result = Scale(TextureGetColor(Texture, Hit.u, Hit.v, Hit.Pos), 1.0);
   }
   return Result;
 }
 
 //~ SURFACE INTERSECTION TESTS
-b32 SurfaceSphereHit(sphere *Sphere, hit *Hit, ray Ray, f64 Mint, f64 Maxt)
+b32 SurfaceSphereHit(sphere *Sphere, hit_info *Hit, ray Ray, f64 Mint, f64 Maxt)
 {
-  hit NewHit = ObjCopyFromRef(hit, Hit);
+  hit_info NewHit = ObjCopyFromRef(hit_info, Hit);
   // TODO(MIGUEL): Read the sphere interesectio code simplification
   v3f64 oc = Sub(Ray.Origin, Sphere->Pos);
   f64 a = LengthSquared(Ray.Dir);
@@ -252,9 +386,9 @@ b32 SurfaceSphereHit(sphere *Sphere, hit *Hit, ray Ray, f64 Mint, f64 Maxt)
   return HIT_DETECTED;
   
 }
-b32 SurfaceSphereMovingHit(sphere_moving *Sphere, hit *Hit, ray Ray, f64 Mint, f64 Maxt)
+b32 SurfaceSphereMovingHit(sphere_moving *Sphere, hit_info *Hit, ray Ray, f64 Mint, f64 Maxt)
 {
-  hit NewHit = ObjCopyFromRef(hit, Hit);
+  hit_info NewHit = ObjCopyFromRef(hit_info, Hit);
   // TODO(MIGUEL): Read the sphere interesectio code simplification
   v3f64 oc = Sub(Ray.Origin, SphereMovingGetPos(Sphere, Ray.Time));
   f64 a = LengthSquared(Ray.Dir);
@@ -280,7 +414,7 @@ b32 SurfaceSphereMovingHit(sphere_moving *Sphere, hit *Hit, ray Ray, f64 Mint, f
   WriteToRef(Hit, NewHit); 
   return HIT_DETECTED;
 }
-b32 AABBHit(aabb *Aabb, ray Ray, f64 tmin, f64 tmax)
+b32 SurfaceAABBHit(aabb *Aabb, ray Ray, f64 tmin, f64 tmax)
 {
   for(int a=0;a<3;a++)
   {
@@ -294,16 +428,16 @@ b32 AABBHit(aabb *Aabb, ray Ray, f64 tmin, f64 tmax)
   }
   return HIT_DETECTED;
 }
-b32 SurfaceBVHNodeHit(bvh_node *BvhNode, hit *Hit, ray Ray, f64 tmin, f64 tmax)
+b32 SurfaceBVHNodeHit(bvh_node *BvhNode, hit_info *HitInfo, ray Ray, f64 tmin, f64 tmax)
 {
-  if(!AABBHit(&BvhNode->AABB, Ray, tmin, tmax)) return HIT_NOTDETECTED;
-  b32 hit_left  = SurfaceHit(BvhNode->Left , Hit, Ray, tmin, tmax);
-  b32 hit_right = SurfaceHit(BvhNode->Right, Hit, Ray, tmin, hit_left?Hit->t:tmax);
+  if(!SurfaceAABBHit(&BvhNode->AABB, Ray, tmin, tmax)) return HIT_NOTDETECTED;
+  b32 hit_left  = SurfaceHit(BvhNode->Left , HitInfo, Ray, tmin, tmax);
+  b32 hit_right = SurfaceHit(BvhNode->Right, HitInfo, Ray, tmin, hit_left?HitInfo->t:tmax);
   return (hit_left || hit_right);
 }
-b32 SurfaceRectXYHit(rect *Rect, hit *Hit, ray Ray, f64 Mint, f64 Maxt)
+b32 SurfaceRectXYHit(rect *Rect, hit_info *HitInfo, ray Ray, f64 Mint, f64 Maxt)
 {
-  hit NewHit = ObjCopyFromRef(hit, Hit);
+  hit_info NewHitInfo = ObjCopyFromRef(hit_info, HitInfo);
   r3f64 p = Rect->Points;
   f64 t = (Rect->Offset - Ray.Origin.z)/Ray.Dir.z;
   if(t < Mint || t > Maxt) return HIT_NOTDETECTED;
@@ -312,19 +446,19 @@ b32 SurfaceRectXYHit(rect *Rect, hit *Hit, ray Ray, f64 Mint, f64 Maxt)
   f64 y = Ray.Origin.y + t*Ray.Dir.y;
   if(x < p.x0 || x > p.x1 || y < p.y0 || y > p.y1) return HIT_NOTDETECTED;
   
-  NewHit.u = (x - p.x0)/(p.x1-p.x0);
-  NewHit.v = (y - p.y0)/(p.y1-p.y0);
-  NewHit.t = t;
+  NewHitInfo.u = (x - p.x0)/(p.x1-p.x0);
+  NewHitInfo.v = (y - p.y0)/(p.y1-p.y0);
+  NewHitInfo.t = t;
   v3f64 OutwardNormal = V3f64(0,0,1);
-  HitSetFaceNormal(&NewHit, Ray, OutwardNormal);
-  NewHit.MatId = Rect->MatId;
-  NewHit.Pos = RayAt(Ray, t);
-  WriteToRef(Hit, NewHit);
+  HitSetFaceNormal(&NewHitInfo, Ray, OutwardNormal);
+  NewHitInfo.MatId = Rect->MatId;
+  NewHitInfo.Pos = RayAt(Ray, t);
+  WriteToRef(HitInfo, NewHitInfo);
   return HIT_DETECTED;
 }
-b32 SurfaceRectXZHit(rect *Rect, hit *Hit, ray Ray, f64 Mint, f64 Maxt)
+b32 SurfaceRectXZHit(rect *Rect, hit_info *HitInfo, ray Ray, f64 Mint, f64 Maxt)
 {
-  hit NewHit = ObjCopyFromRef(hit, Hit);
+  hit_info NewHitInfo = ObjCopyFromRef(hit_info, HitInfo);
   r3f64 p = Rect->Points;
   f64 t = (Rect->Offset - Ray.Origin.y)/Ray.Dir.y;
   if(t < Mint || t > Maxt) return HIT_NOTDETECTED;
@@ -333,19 +467,19 @@ b32 SurfaceRectXZHit(rect *Rect, hit *Hit, ray Ray, f64 Mint, f64 Maxt)
   f64 z = Ray.Origin.z + t*Ray.Dir.z;
   if(x < p.x0 || x > p.x1 || z < p.z0 || z > p.z1) return HIT_NOTDETECTED;
   
-  NewHit.u = (x - p.x0)/(p.x1-p.x0);
-  NewHit.v = (z - p.z0)/(p.z1-p.z0);
-  NewHit.t = t;
+  NewHitInfo.u = (x - p.x0)/(p.x1-p.x0);
+  NewHitInfo.v = (z - p.z0)/(p.z1-p.z0);
+  NewHitInfo.t = t;
   v3f64 OutwardNormal = V3f64(0,1,0);
-  HitSetFaceNormal(&NewHit, Ray, OutwardNormal);
-  NewHit.MatId = Rect->MatId;
-  NewHit.Pos = RayAt(Ray, t);
-  WriteToRef(Hit, NewHit);
+  HitSetFaceNormal(&NewHitInfo, Ray, OutwardNormal);
+  NewHitInfo.MatId = Rect->MatId;
+  NewHitInfo.Pos = RayAt(Ray, t);
+  WriteToRef(HitInfo, NewHitInfo);
   return HIT_DETECTED;
 }
-b32 SurfaceRectYZHit(rect *Rect, hit *Hit, ray Ray, f64 Mint, f64 Maxt)
+b32 SurfaceRectYZHit(rect *Rect, hit_info *HitInfo, ray Ray, f64 Mint, f64 Maxt)
 {
-  hit NewHit = ObjCopyFromRef(hit, Hit);
+  hit_info NewHitInfo = ObjCopyFromRef(hit_info, HitInfo);
   r3f64 p = Rect->Points;
   f64 t = (Rect->Offset - Ray.Origin.x)/Ray.Dir.x;
   if(t < Mint || t > Maxt) return HIT_NOTDETECTED;
@@ -354,23 +488,23 @@ b32 SurfaceRectYZHit(rect *Rect, hit *Hit, ray Ray, f64 Mint, f64 Maxt)
   f64 z = Ray.Origin.z + t*Ray.Dir.z;
   if(y < p.y0 || y > p.y1 || z < p.z0 || z > p.z1) return HIT_NOTDETECTED;
   
-  NewHit.u = (y - p.y0)/(p.y1-p.y0);
-  NewHit.v = (z - p.z0)/(p.z1-p.z0);
-  NewHit.t = t;
+  NewHitInfo.u = (y - p.y0)/(p.y1-p.y0);
+  NewHitInfo.v = (z - p.z0)/(p.z1-p.z0);
+  NewHitInfo.t = t;
   v3f64 OutwardNormal = V3f64(1,0,0);
-  HitSetFaceNormal(&NewHit, Ray, OutwardNormal);
-  NewHit.MatId = Rect->MatId;
-  NewHit.Pos = RayAt(Ray, t);
-  WriteToRef(Hit, NewHit);
+  HitSetFaceNormal(&NewHitInfo, Ray, OutwardNormal);
+  NewHitInfo.MatId = Rect->MatId;
+  NewHitInfo.Pos = RayAt(Ray, t);
+  WriteToRef(HitInfo, NewHitInfo);
   return HIT_DETECTED;
 }
-b32 SurfaceBoxHit(box *Box, hit *Hit, ray Ray, f64 Mint, f64 Maxt)
+b32 SurfaceBoxHit(box *Box, hit_info *HitInfo, ray Ray, f64 Mint, f64 Maxt)
 {
   //// TODO(MIGUEL): Test AABB first
-  b32 Result = SurfaceListHit(Box->SidesList, 6, Hit, Ray, Mint, Maxt);
+  b32 Result = SurfaceListHit(Box->SidesList, 6, HitInfo, Ray, Mint, Maxt);
   return Result;
 }
-b32 SurfaceTransformedInstHit(transformed_inst *Instance, hit *Hit, ray Ray, f64 Mint, f64 Maxt)
+b32 SurfaceTransformedInstHit(transformed_inst *Instance, hit_info *HitInfo, ray Ray, f64 Mint, f64 Maxt)
 {
   if(Instance->Kind == (TransformKind_Translate | TransformKind_RotateY))
   {
@@ -385,23 +519,23 @@ b32 SurfaceTransformedInstHit(transformed_inst *Instance, hit *Hit, ray Ray, f64
     Dir.z    = SinTheta*MovedRay.Dir.x    + CosTheta*MovedRay.Dir.z;
     
     ray RotatedRay = RayInit(Origin, Dir, MovedRay.Time);
-    if(!SurfaceHit(Instance->Instance, Hit, RotatedRay, Mint, Maxt)) 
+    if(!SurfaceHit(Instance->Instance, HitInfo, RotatedRay, Mint, Maxt)) 
     {
       return HIT_NOTDETECTED;
     }
     
-    v3f64 Pos    = Hit->Pos;
-    v3f64 Normal = Hit->Normal;
+    v3f64 Pos    = HitInfo->Pos;
+    v3f64 Normal = HitInfo->Normal;
     
-    Pos.x    =  CosTheta*Hit->Pos.x    + SinTheta*Hit->Pos.z;
-    Pos.z    = -SinTheta*Hit->Pos.x    + CosTheta*Hit->Pos.z;
-    Normal.x =  CosTheta*Hit->Normal.x + SinTheta*Hit->Normal.z;
-    Normal.z = -SinTheta*Hit->Normal.x + CosTheta*Hit->Normal.z;
+    Pos.x    =  CosTheta*HitInfo->Pos.x    + SinTheta*HitInfo->Pos.z;
+    Pos.z    = -SinTheta*HitInfo->Pos.x    + CosTheta*HitInfo->Pos.z;
+    Normal.x =  CosTheta*HitInfo->Normal.x + SinTheta*HitInfo->Normal.z;
+    Normal.z = -SinTheta*HitInfo->Normal.x + CosTheta*HitInfo->Normal.z;
     
-    Hit->Pos = Pos;
-    HitSetFaceNormal(Hit, RotatedRay, Normal);
-    Hit->Pos = Add(Hit->Pos, Instance->Offset);
-    HitSetFaceNormal(Hit, MovedRay, Hit->Normal);
+    HitInfo->Pos = Pos;
+    HitSetFaceNormal(HitInfo, RotatedRay, Normal);
+    HitInfo->Pos = Add(HitInfo->Pos, Instance->Offset);
+    HitSetFaceNormal(HitInfo, MovedRay, HitInfo->Normal);
     return HIT_DETECTED;
   }
   if(Instance->Kind == TransformKind_RotateY)
@@ -416,95 +550,151 @@ b32 SurfaceTransformedInstHit(transformed_inst *Instance, hit *Hit, ray Ray, f64
     Dir.z    = SinTheta*Ray.Dir.x    + CosTheta*Ray.Dir.z;
     
     ray RotatedRay = RayInit(Origin, Dir, Ray.Time);
-    if(!SurfaceHit(Instance->Instance, Hit, RotatedRay, Mint, Maxt)) 
+    if(!SurfaceHit(Instance->Instance, HitInfo, RotatedRay, Mint, Maxt)) 
     {
       return HIT_NOTDETECTED;
     }
     
-    v3f64 Pos    = Hit->Pos;
-    v3f64 Normal = Hit->Normal;
+    v3f64 Pos    = HitInfo->Pos;
+    v3f64 Normal = HitInfo->Normal;
     
-    Pos.x    =  CosTheta*Hit->Pos.x    + SinTheta*Hit->Pos.z;
-    Pos.z    = -SinTheta*Hit->Pos.x    + CosTheta*Hit->Pos.z;
-    Normal.x =  CosTheta*Hit->Normal.x + SinTheta*Hit->Normal.z;
-    Normal.z = -SinTheta*Hit->Normal.x + CosTheta*Hit->Normal.z;
+    Pos.x    =  CosTheta*HitInfo->Pos.x    + SinTheta*HitInfo->Pos.z;
+    Pos.z    = -SinTheta*HitInfo->Pos.x    + CosTheta*HitInfo->Pos.z;
+    Normal.x =  CosTheta*HitInfo->Normal.x + SinTheta*HitInfo->Normal.z;
+    Normal.z = -SinTheta*HitInfo->Normal.x + CosTheta*HitInfo->Normal.z;
     
-    Hit->Pos = Pos;
-    HitSetFaceNormal(Hit, RotatedRay, Normal);
+    HitInfo->Pos = Pos;
+    HitSetFaceNormal(HitInfo, RotatedRay, Normal);
   }
   if(Instance->Kind == TransformKind_Translate)
   {
     ray MovedRay = RayInit(Sub(Ray.Origin, Instance->Offset), Ray.Dir, Ray.Time);
-    if(!SurfaceHit(Instance->Instance, Hit, MovedRay, Mint, Maxt))
+    if(!SurfaceHit(Instance->Instance, HitInfo, MovedRay, Mint, Maxt))
     { 
       return HIT_NOTDETECTED;
     }
-    Hit->Pos = Add(Hit->Pos, Instance->Offset);
-    HitSetFaceNormal(Hit, MovedRay, Hit->Normal);
+    HitInfo->Pos = Add(HitInfo->Pos, Instance->Offset);
+    HitSetFaceNormal(HitInfo, MovedRay, HitInfo->Normal);
   }
   return HIT_DETECTED;
 }
-b32 SurfaceHit(surface *Surface, hit *Hit, ray Ray, f64 Mint, f64 Maxt)
+b32 SurfaceConstantMediumHit(constant_medium *Medium, hit_info *HitInfo, ray Ray, f64 Mint, f64 Maxt)
+{
+  b32 EnableDebug = 0;
+  b32 Debugging   = EnableDebug && (RandF64Uni()<0.00001);
+  hit_info HitInfo1 = {0};
+  hit_info HitInfo2 = {0};
+  
+  if(!SurfaceHit(Medium->Boundary, &HitInfo1, Ray, -Infintyf64(), Infintyf64())) { return HIT_NOTDETECTED; }
+  if(!SurfaceHit(Medium->Boundary, &HitInfo2, Ray,  HitInfo1.t+0.001, Infintyf64())) { return HIT_NOTDETECTED; }
+  if(Debugging) fprintf(stderr, "\nMint=%f, Maxt=%f\n", HitInfo1.t, HitInfo2.t);
+  if(HitInfo1.t < Mint) HitInfo1.t = Mint;
+  if(HitInfo2.t > Maxt) HitInfo2.t = Maxt;
+  
+  if(HitInfo1.t >= HitInfo2.t) return HIT_NOTDETECTED;
+  
+  if(HitInfo1.t < 0.0) HitInfo1.t = 0.0;
+  
+  f64 RayLength = Length(Ray.Dir);
+  f64 DistInBoundary = (HitInfo2.t - HitInfo1.t)*RayLength;
+  f64 HitDist = Medium->NegInvDensity*Log(RandF64Uni());
+  if(HitDist>DistInBoundary) { return HIT_NOTDETECTED; }
+  
+  HitInfo->t   = HitInfo1.t + HitDist/RayLength;
+  HitInfo->Pos = RayAt(Ray, HitInfo->t);
+  
+  if(Debugging)
+  {
+    fprintf(stderr,
+            "HitInfo Distnace = %f\n"
+            "HitInfo.t = %f\n"
+            "HitInfo.p = (%f,%f,%f)\n", 
+            HitDist, HitInfo->t,
+            HitInfo->Pos.x, HitInfo->Pos.y, HitInfo->Pos.z);
+  }
+  HitInfo->Normal = V3f64(1,0,0);
+  HitInfo->IsFrontFace = 1;
+  HitInfo->MatId = Medium->MatId;
+  
+  return HIT_DETECTED;
+}
+b32 SurfaceFlipFaceHit(flip_face *FlipFace, hit_info *HitInfo, ray Ray, f64 Mint, f64 Maxt)
+{
+  // listing 21
+  // NOTE(MIGUEL): Having an object just to perform an operation like this seems kind of silly...
+  //               But ill do this to not stray from the tutorial
+  if(FlipFace->Surface==NULL) Assert(!"Bad refernce managment detected");
+  if(!SurfaceHit(FlipFace->Surface, HitInfo, Ray, Mint, Maxt)) return HIT_NOTDETECTED;
+  HitInfo->IsFrontFace = !HitInfo->IsFrontFace;
+  return HIT_DETECTED;
+}
+b32 SurfaceHit(surface *Surface, hit_info *HitInfo, ray Ray, f64 Mint, f64 Maxt)
 {
   b32 Result = 0;
   switch(Surface->Kind)
   {
     case SurfaceKind_Sphere: {
-      Result = SurfaceSphereHit(&Surface->Sphere, Hit, Ray, Mint, Maxt);
+      Result = SurfaceSphereHit(&Surface->Sphere, HitInfo, Ray, Mint, Maxt);
     }break;
     case SurfaceKind_SphereMoving: {
-      Result = SurfaceSphereMovingHit(&Surface->SphereMoving, Hit, Ray, Mint, Maxt);
+      Result = SurfaceSphereMovingHit(&Surface->SphereMoving, HitInfo, Ray, Mint, Maxt);
     }break;
     case SurfaceKind_RectXY: {
-      Result = SurfaceRectXYHit(&Surface->Rect, Hit, Ray, Mint, Maxt);
+      Result = SurfaceRectXYHit(&Surface->Rect, HitInfo, Ray, Mint, Maxt);
     }break;
     case SurfaceKind_RectXZ: {
-      Result = SurfaceRectXZHit(&Surface->Rect, Hit, Ray, Mint, Maxt);
+      Result = SurfaceRectXZHit(&Surface->Rect, HitInfo, Ray, Mint, Maxt);
     }break;
     case SurfaceKind_RectYZ: {
-      Result = SurfaceRectYZHit(&Surface->Rect, Hit, Ray, Mint, Maxt);
+      Result = SurfaceRectYZHit(&Surface->Rect, HitInfo, Ray, Mint, Maxt);
     }break;
     case SurfaceKind_Box: {
-      Result = SurfaceBoxHit(&Surface->Box, Hit, Ray, Mint, Maxt);
+      Result = SurfaceBoxHit(&Surface->Box, HitInfo, Ray, Mint, Maxt);
     }break;
     case SurfaceKind_TransformedInst: {
-      Result = SurfaceTransformedInstHit(&Surface->TransformedInst, Hit, Ray, Mint, Maxt);
+      Result = SurfaceTransformedInstHit(&Surface->TransformedInst, HitInfo, Ray, Mint, Maxt);
     }break;
+    case SurfaceKind_FlipFace: { 
+      Result = SurfaceFlipFaceHit(&Surface->FlipFace, HitInfo, Ray, Mint, Maxt);
+    } break;
+    case SurfaceKind_ConstantMedium: { 
+      Result = SurfaceConstantMediumHit(&Surface->ConstantMedium, HitInfo, Ray, Mint, Maxt);
+    } break;
     case SurfaceKind_BVHNode: {
-      Result = SurfaceBVHNodeHit(&Surface->BvhNode, Hit, Ray, Mint, Maxt);
+      Result = SurfaceBVHNodeHit(&Surface->BvhNode, HitInfo, Ray, Mint, Maxt);
     }break;
   }
   return Result;
 }
-b32 SurfaceListHit(surface *Surfaces, u32 SurfaceCount, hit *Hit, ray Ray, f64 Mint, f64 Maxt)
+b32 SurfaceListHit(surface *Surfaces, u32 SurfaceCount, hit_info *HitInfo, ray Ray, f64 Mint, f64 Maxt)
 {
   b32 SurfaceWasHit = 0;
   f64 ClosestHit = Maxt;
-  hit TempHit = {0};
+  hit_info TempHitInfo = {0};
   
   for(u32 SurfaceId=0; SurfaceId<SurfaceCount; SurfaceId++)
   {
-    if(SurfaceHit(&Surfaces[SurfaceId], &TempHit, Ray, Mint, ClosestHit))
+    if(SurfaceHit(&Surfaces[SurfaceId], &TempHitInfo, Ray, Mint, ClosestHit))
     {
       SurfaceWasHit = 1;
-      ClosestHit = TempHit.t;
-      WriteToRef(Hit, TempHit);
+      ClosestHit = TempHitInfo.t;
+      WriteToRef(HitInfo, TempHitInfo);
     }
   }
   return SurfaceWasHit;
 }
-b32 SurfaceBVHListHit(surface *BVHList, u32 BVHCount, hit *Hit, ray Ray, f64 Mint, f64 Maxt)
+b32 SurfaceBVHListHit(surface *BVHList, u32 BVHCount, hit_info *HitInfo, ray Ray, f64 Mint, f64 Maxt)
 {
   b32 SurfaceWasHit = 0;
   f64 ClosestHit = Maxt;
-  hit TempHit = {0};
+  hit_info TempHitInfo = {0};
   for(u32 BVHId=0; BVHId<BVHCount; BVHId++)
   {
-    if(SurfaceHit(&BVHList[BVHId], &TempHit, Ray, Mint, ClosestHit))
+    if(SurfaceHit(&BVHList[BVHId], &TempHitInfo, Ray, Mint, ClosestHit))
     {
       SurfaceWasHit = 1;
-      ClosestHit = TempHit.t;
-      WriteToRef(Hit, TempHit);
+      ClosestHit = TempHitInfo.t;
+      WriteToRef(HitInfo, TempHitInfo);
     }
   }
   return SurfaceWasHit;

@@ -16,7 +16,8 @@ enum surface_kind
   SurfaceKind_RectYZ,
   SurfaceKind_Box,
   SurfaceKind_TransformedInst,
-  //SurfaceKind_ConstantMedium,
+  SurfaceKind_FlipFace,
+  SurfaceKind_ConstantMedium,
   SurfaceKind_BVHNode,
 };
 typedef enum material_kind material_kind;
@@ -68,6 +69,11 @@ struct box
   u32 MatId;
   surface *SidesList;
 };
+typedef struct flip_face flip_face;
+struct flip_face
+{
+  surface *Surface;
+};
 typedef enum transform_kind transform_kind;
 enum transform_kind
 {
@@ -110,8 +116,9 @@ struct surface
     sphere_moving SphereMoving;
     rect          Rect;
     box           Box;
+    flip_face     FlipFace;
     transformed_inst TransformedInst;
-    //constant_medium ConstantMedium;
+    constant_medium ConstantMedium;
     //special
     bvh_node BvhNode;
   };
@@ -120,13 +127,13 @@ typedef struct material material;
 struct material
 {
   material_kind Kind;
-  u32 TexId;
+  u32 TexId; //isotropic
   f64 Fuzz;
   f64 IndexOfRefraction;
   //1v3f64 EmmitColor;
 };
-typedef struct hit hit;
-struct hit
+typedef struct hit_info hit_info;
+struct hit_info
 {
   v3f64 Pos;
   v3f64 Normal;
@@ -136,13 +143,51 @@ struct hit
   u32  MatId;
   b32  IsFrontFace;
 };
+typedef enum pdf_kind pdf_kind;
+enum pdf_kind
+{
+  PdfKind_Cosine,
+  PdfKind_Mixture,
+  PdfKind_Surface,
+};
+typedef struct pdf pdf;
+struct pdf
+{
+  pdf_kind Kind;
+  m3f64    Basis; //is ortho normal ofcourse
+  // surface
+  v3f64    Origin;
+  surface *Surface;
+  // mixture
+  pdf *MixPdf[2];
+};
+typedef struct scatter_info scatter_info;
+struct scatter_info
+{
+  ray SpecularRay;
+  b32 IsSpecular;
+  v3f64 Atten;
+  pdf *Pdf;
+};
 
-b32   SurfaceListHit(surface *Surfaces, u32 SurfaceCount, hit *Hit, ray Ray, f64 Mint, f64 Maxt);
-b32   SurfaceHit(surface *Surface, hit *Hit, ray Ray, f64 Mint, f64 Maxt);
+b32   SurfaceListHit(surface *Surfaces, u32 SurfaceCount, hit_info *Hit, ray Ray, f64 Mint, f64 Maxt);
+b32   SurfaceHit(surface *Surface, hit_info *Hit, ray Ray, f64 Mint, f64 Maxt);
+b32   SurfaceRectYZHit(rect *Rect, hit_info *Hit, ray Ray, f64 Mint, f64 Maxt);
+b32   SurfaceSphereHit(sphere *Sphere, hit_info *Hit, ray Ray, f64 Mint, f64 Maxt);
+b32   SurfaceSphereMovingHit(sphere_moving *Sphere, hit_info *Hit, ray Ray, f64 Mint, f64 Maxt);
+b32   MaterialScatter(material *Material, texture *Texture, ray Ray, hit_info *Hit, scatter_info *Scattered, scratch *Scratch);
+f64   MaterialScatterPdf(material *Material, hit_info Hit, ray Scattered);
+v3f64 MaterialEmmited(texture *Texture, hit_info Hit);
 
-b32   MaterialScatter(material *Material, texture *Texture, ray Ray, hit Hit, v3f64 *Atten, ray *Scattered, f64 *Pdf);
-f64   MaterialScatterPdf(material *Material, ray Ray, hit Hit, ray Scattered);
-v3f64 MaterialEmmited(material *Material, texture *Texture, f64 u, f64 v, v3f64 Pos);
-
+//helpers
 v3f64 SphereMovingGetPos(sphere_moving *SphereMoving, f64 Time);
+v3f64 SurfaceGenRandom(surface *Surface, v3f64 Origin);
+f64   SurfaceGetPdfValue(surface *Surface, v3f64 Origin, v3f64 v);
+m3f64 OrthoNormBasisFromNormal(v3f64 n);
+v3f64 OrthoNormBasisGetLocal_v3f64(m3f64 Basis, v3f64 a);
+v3f64 OrthoNormBasisGetLocal_3f64(m3f64 Basis, f64 x, f64 y, f64 z);
+m3f64 OrthoNormBasisInit(v3f64 u, v3f64 v, v3f64 w);
+
+#define OrthoNormBasisGetLocal(...) _Generic(ARG2(__VA_ARGS__), f64:   OrthoNormBasisGetLocal_3f64, v3f64: OrthoNormBasisGetLocal_v3f64)(__VA_ARGS__)
+
 #endif //RTSURFACE_H

@@ -71,6 +71,12 @@ b32 RenderTile(work_queue *Queue);
 DWORD WorkProcRenderTiles(void *Param)
 {
   work_queue *Queue = (work_queue *)Param;
+  
+  thread_ctx Context = {0};
+  u32 TcxAllocSize = Megabytes(1000);
+  ThreadCtxInit(&Context, OSMemoryAlloc(TcxAllocSize), TcxAllocSize);
+  ThreadCtxSet(&Context);
+  
   WaitForSingleObject((HANDLE)Queue->BeginSignal, INFINITE); 
   while(RenderTile(Queue)) {};
   fprintf(stderr, "exiting thread[%5lu]\n",GetCurrentThreadId());
@@ -78,7 +84,7 @@ DWORD WorkProcRenderTiles(void *Param)
 }
 work_queue WorkQueueInit(tile_fmt TileFormat, u8 *ImageBuffer, u32 ImageWidth, u32 ImageHeight, world *World, u32 MaxDepth, camera *Camera, u32 SamplesPerPixel, u32 CoreCount)
 {
-  u32 TileWidth  = ImageWidth/(CoreCount*2);
+  u32 TileWidth  = ImageWidth/(CoreCount*4);
   u32 TileHeight = TileWidth;
   u32 TileCountX = ((ImageWidth  + TileWidth ) - 1)/(TileWidth);
   u32 TileCountY = ((ImageHeight + TileHeight) - 1)/(TileHeight);
@@ -135,6 +141,11 @@ void WorkQueueBeginWork(work_queue *WorkQueue)
   { 
     fprintf(stderr, "Error setting work queue begin signal.\n");
   }
+  return;
+}
+void WorkQueueFinishWork(work_queue *WorkQueue)
+{
+  OSThreadSync(WorkQueue->ThreadHandles, WorkQueue->ThreadCount);
   return;
 }
 #endif //RTWORK_H

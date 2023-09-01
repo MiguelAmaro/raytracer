@@ -1,7 +1,8 @@
 #ifndef RTTYPES_H
 #define RTTYPES_H
 
-
+#define RT_TRUE (1)
+#define RT_FALSE (0)
 #define Assert(expression) if(!(expression)){ __debugbreak(); } while (0)
 #define ArrayCount(array) sizeof(array)/sizeof(array[0])
 #define WriteToRef(refptr, obj) (*refptr = obj)

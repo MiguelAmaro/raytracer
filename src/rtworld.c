@@ -43,7 +43,8 @@ world *WorldInit(v3f64 Background)
   World->NoiseOnePastLast = World->Noises+WORLD_STACK_NOISE_MAXCOUNT;
   
   //defaults
-  World->DefaultBackground = Background;
+  World->DefaultBackground[0] = Background;
+  World->DefaultBackground[0] = Background;
   World->DefaultNoiseId = WorldNoiseAdd(World, NoiseKind_Perin);
   World->DefaultTexId = WorldTextureAdd(World, TextureKind_SolidColor, V3f64(1.0, 0.0, 1.0),0,0,0,0,NULL); //default texture
   World->DefaultMatId = WorldMaterialAdd(World, MaterialKind_Lambert, World->DefaultTexId, 0.0, 0.0); //default material
@@ -57,9 +58,10 @@ void WorldBVHRootListInit(world *World, u32 RootCount)
 }
 
 //~ APPENDERS
-void WorldSurfaceAdd(world *World, surface_kind Kind, void *SurfaceData)
+surface *WorldSurfaceAdd(world *World, surface_kind Kind, void *SurfaceData)
 {
-  if(WorldSurfaceStackFull(World)) { return; }
+  if(WorldSurfaceStackFull(World)) { return NULL; }
+  surface *Result = NULL;
   surface NewSurface = { .Kind = Kind };
   switch(Kind)
   {
@@ -79,7 +81,7 @@ void WorldSurfaceAdd(world *World, surface_kind Kind, void *SurfaceData)
       NewSurface.Rect = ObjCopyFromRef(rect, SurfaceData);
     } break;
     case SurfaceKind_Box: {
-      if(WorldSurfacesStaticStackFull(World)) { return; }
+      if(WorldSurfacesStaticStackFull(World)) { return NULL; }
       NewSurface.Box = ObjCopyFromRef(box, SurfaceData);
       v3f64 min   = NewSurface.Box.min;
       v3f64 max   = NewSurface.Box.max;
@@ -102,12 +104,20 @@ void WorldSurfaceAdd(world *World, surface_kind Kind, void *SurfaceData)
     case SurfaceKind_TransformedInst: {
       NewSurface.TransformedInst = ObjCopyFromRef(transformed_inst, SurfaceData);
     }break;
+    case SurfaceKind_ConstantMedium: {
+      NewSurface.ConstantMedium = ObjCopyFromRef(constant_medium, SurfaceData);
+    }break;
+    case SurfaceKind_FlipFace:
+    { 
+      NewSurface.FlipFace = ObjCopyFromRef(flip_face, SurfaceData);
+    } break;
     case SurfaceKind_BVHNode: { Assert(!"Invalid Codepath"); } break;
   }
   WriteToRef(World->SurfaceNext, NewSurface);
+  Result = World->SurfaceNext;
   World->SurfaceNext++;
   World->SurfaceCount++;
-  return;
+  return Result;
 }
 surface *WorldSurfaceStaticAdd(world *World, surface_kind Kind, void *SurfaceData)
 {
@@ -154,6 +164,14 @@ surface *WorldSurfaceStaticAdd(world *World, surface_kind Kind, void *SurfaceDat
     case SurfaceKind_TransformedInst: {
       NewSurface.TransformedInst = ObjCopyFromRef(transformed_inst, SurfaceData);
     }break;
+    case SurfaceKind_ConstantMedium: {
+      NewSurface.ConstantMedium = ObjCopyFromRef(constant_medium, SurfaceData);
+    }break;
+    case SurfaceKind_FlipFace:
+    { 
+      NewSurface.FlipFace = ObjCopyFromRef(flip_face, SurfaceData);
+    } break;
+    
     case SurfaceKind_BVHNode: { Assert(!"Invalid Codepath"); } break;
   }
   WriteToRef(World->SurfaceStaticNext, NewSurface);
@@ -266,10 +284,10 @@ noise *WorldNoiseGetFromId(world *World, u32 NoiseId)
 }
 
 //~ WORLD TRAVERSAL
-b32 WorldHit(world *World, hit *Hit, ray Ray, f64 Mint, f64 Maxt, b32 UseBVH)
+b32 WorldHit(world *World, hit_info *HitInfo, ray Ray, f64 Mint, f64 Maxt, b32 UseBVH)
 {
   b32 Result = (UseBVH?
-                SurfaceBVHListHit(World->BVHRoots, World->BVHRootCount, Hit, Ray, Mint, Maxt):
-                SurfaceListHit   (World->Surfaces, World->SurfaceCount, Hit, Ray, Mint, Maxt));
+                SurfaceBVHListHit(World->BVHRoots, World->BVHRootCount, HitInfo, Ray, Mint, Maxt):
+                SurfaceListHit   (World->Surfaces, World->SurfaceCount, HitInfo, Ray, Mint, Maxt));
   return Result;
 }

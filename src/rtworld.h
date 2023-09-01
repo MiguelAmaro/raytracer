@@ -9,6 +9,8 @@ struct world
   surface *BVHRoots;
   u32      BVHRootCount;
   
+  surface *Light;
+  
   surface   Surfaces [WORLD_STACK_MAXCOUNT];
   surface   SurfacesStatic[WORLD_STACK_MAXCOUNT]; //this is a hack. no sorting. bvh objs in Surfaces refence shit in here
   material  Materials[WORLD_STACK_MAXCOUNT];
@@ -27,7 +29,7 @@ struct world
   u32 TextureCount;
   u32 NoiseCount;
   
-  v3f64 DefaultBackground;
+  v3f64 DefaultBackground[2];
   u32 DefaultNoiseId;
   u32 DefaultTexId;
   u32 DefaultMatId;
@@ -39,7 +41,7 @@ struct world
 #define NOISE_INVALID_ID (0xffffffff)
 
 world *WorldInit(v3f64 Background);
-b32  WorldHit(world *World, hit *Hit, ray Ray, f64 Mint, f64 Maxt, b32 UseBVH);
+b32  WorldHit(world *World, hit_info *Hit, ray Ray, f64 Mint, f64 Maxt, b32 UseBVH);
 u32  WorldMaterialAdd(world *World, material_kind Kind, u32 TexId, f64 Fuzziness, f64 IndexOfRefraction);
 u32   WorldTextureAdd(world *World, texture_kind Kind, v3f64 Color, u32 CheckerTexIdA, u32 CheckerTexIdB, u32 NoiseId, f64 NoiseScale, const char *Path);
 surface *WorldSurfaceStaticAdd(world *World, surface_kind Kind, void *SurfaceData);

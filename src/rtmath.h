@@ -22,6 +22,7 @@
 #define Tan(a)        _Generic((a), f64: Tan_f64)((a))
 #define Cos(a)        _Generic((a), f64: Cos_f64)((a))
 #define Sin(a)        _Generic((a), f64: Sin_f64)((a))
+#define Log(a)        _Generic((a), f64: Log_f64)((a))
 #define Floor(a)        _Generic((a), f64: Floor_f64)((a))
 #define Ceil(a)        _Generic((a), f64: Ceil_f64)((a))
 #define Abs(a)        _Generic((a), f64: Abs_f64)((a))
@@ -85,6 +86,11 @@ f64 Tan_f64(f64 a)
 f64 Cos_f64(f64 a)
 {
   f64 r = cos(a);
+  return r;
+}
+f64 Log_f64(f64 a)
+{
+  f64 r = log(a);
   return r;
 }
 f64 Sin_f64(f64 a)

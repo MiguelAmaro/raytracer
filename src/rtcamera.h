@@ -42,12 +42,11 @@ ray CameraGetRay(camera *Camera, f64 s, f64 t)
 {
   v3f64     rd = Scale(RandInUnitDisk(), Camera->LenseRadius);
   v3f64 Offset = Add(Scale(Camera->u, rd.x), Scale(Camera->v, rd.y));
-  ray   Result = RayInit(Add(Camera->Origin, Offset),
-                         Sub(Add(Camera->LowerLeftCorner,
-                                 Add(Scale(Camera->Horizontal, s),
-                                     Scale(Camera->Vertical, t))),
-                             Add(Camera->Origin, Offset)),
-                         RandF64Range(Camera->Time0, Camera->Time1));
+  v3f64 Origin = Add(Camera->Origin, Offset);
+  v3f64 ImagePlaneCoord = Add(Scale(Camera->Horizontal, s), Scale(Camera->Vertical  , t));
+  v3f64 Dir             = Sub(Add(Camera->LowerLeftCorner, ImagePlaneCoord), Add(Camera->Origin, Offset));
+  
+  ray Result = RayInit(Origin, Dir,RandF64Range(Camera->Time0, Camera->Time1));
   return Result;
 }
 #endif //RTCAMERA_H

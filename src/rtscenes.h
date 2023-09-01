@@ -4,7 +4,8 @@
 
 void SceneBVHTest(world *World, camera *Camera, f64 AspectRatio)
 {
-  World->DefaultBackground = V3f64(0.7,0.8,1.0);
+  World->DefaultBackground[0] = V3f64(1.0,0.827,0.657); //bright orange
+  World->DefaultBackground[1] = V3f64(0.39,0.613,0.792); //sky blue
   // CAMERA
   v3f64 LookFrom = V3f64(13.0,2.0,3.0);
   v3f64 LookAt   = V3f64(0.0,0.0,0.0);
@@ -41,7 +42,8 @@ void SceneBVHTest(world *World, camera *Camera, f64 AspectRatio)
 }
 void SceneTwoSpheres(world *World, camera *Camera, f64 AspectRatio)
 {
-  World->DefaultBackground = V3f64(0.7,0.8,1.0);
+  World->DefaultBackground[0] = V3f64(0.7,0.8,1.0);
+  World->DefaultBackground[1] = V3f64(0.7,0.8,1.0);
   // TODO(MIGUEL): fix this
   // CAMERA
   v3f64 LookFrom = V3f64(13.0,2.0,3.0);
@@ -72,7 +74,8 @@ void SceneTwoSpheres(world *World, camera *Camera, f64 AspectRatio)
 }
 void SceneTwoPerlinSpheres(world *World, camera *Camera, f64 AspectRatio)
 {
-  World->DefaultBackground = V3f64(0.7,0.8,1.0);
+  World->DefaultBackground[0] = V3f64(0.7,0.8,1.0);
+  World->DefaultBackground[1] = V3f64(0.7,0.8,1.0);
   // TODO(MIGUEL): fix this
   // CAMERA
   v3f64 LookFrom = V3f64(13.0,2.0,3.0);
@@ -101,7 +104,8 @@ void SceneTwoPerlinSpheres(world *World, camera *Camera, f64 AspectRatio)
 }
 void SceneEarthSolo(world *World, camera *Camera, f64 AspectRatio)
 {
-  World->DefaultBackground = V3f64(0.7,0.8,1.0);
+  World->DefaultBackground[0] = V3f64(0.7,0.8,1.0);
+  World->DefaultBackground[1] = V3f64(0.7,0.8,1.0);
   // TODO(MIGUEL): fix this
   // CAMERA
   v3f64 LookFrom = V3f64(13.0,2.0,3.0);
@@ -118,12 +122,14 @@ void SceneEarthSolo(world *World, camera *Camera, f64 AspectRatio)
   sphere Sphere = SurfaceSphereInit(V3f64(0,0,0), 2.0, MA);
   WorldSurfaceAdd(World, SurfaceKind_Sphere, &Sphere);
   
-  //BVHInit(&World->BVHRoot, World->Surfaces, 0, World->SurfaceCount, 0.0, 1.0, &World->Arena);
+  WorldBVHRootListInit(World, 1);
+  BVHInit(&World->BVHRoots[0], World->Surfaces, 0, World->SurfaceCount, 0.0, 1.0, &World->Arena);
   return;
 }
 void SceneSimpleLight(world *World, camera *Camera, f64 AspectRatio)
 {
-  World->DefaultBackground = V3f64(0.0,0.0,0.0);
+  World->DefaultBackground[0] = V3f64(0.0,0.0,0.0);
+  World->DefaultBackground[1] = V3f64(0.0,0.0,0.0);
   // TODO(MIGUEL): fix this
   // CAMERA
   v3f64 LookFrom = V3f64(26.0,3.0,6.0);
@@ -147,27 +153,29 @@ void SceneSimpleLight(world *World, camera *Camera, f64 AspectRatio)
   u32  TL = WorldTextureAdd(World, TextureKind_Checker, V3f64(4,4,4), TA,TB,0,0.0,NULL);
   u32  ML = WorldMaterialAdd(World, MaterialKind_DiffuseLight, TL,0.0,0.0);
   rect RA = SurfaceRectXYInit(3.0,5.0,1.0,3.0,-2.0, ML);
-  WorldSurfaceAdd(World, SurfaceKind_RectXY, &RA);
+  surface *LightRef = WorldSurfaceAdd(World, SurfaceKind_RectXY, &RA);
+  World->Light = LightRef;
   WorldBVHRootListInit(World, 1);
   BVHInit(&World->BVHRoots[0], World->Surfaces, 0, World->SurfaceCount, 0.0, 1.0, &World->Arena);
   return;
 }
 void SceneRandom(world *World, camera *Camera, f64 AspectRatio)
 {
-  World->DefaultBackground = V3f64(20.7,20.8,21.0);
+  World->DefaultBackground[0] = V3f64(1.0,0.827,0.657); //bright orange
+  World->DefaultBackground[1] = V3f64(0.39,0.613,0.792); //sky blue
   // CAMERA
   v3f64 LookFrom = V3f64(13.0,2.0,3.0);
   v3f64 LookAt   = V3f64(0.0,0.0,0.0);
   v3f64 RelUp    = V3f64(0.0,1.0,0.0);
-  f64   DistToFocus = 20.0;
-  f64   FOV = 20.0;
-  f64   Aperture = 0.1;
+  f64   DistToFocus = 8.0; //20.0
+  f64   FOV = 20.0; //20.0
+  f64   Aperture = 0.04;
   WriteToRef(Camera, CameraInit(LookFrom, LookAt, RelUp, FOV, AspectRatio, Aperture, DistToFocus, 0.0, 1.0));
   
-  u32 TGroundA = WorldTextureAdd(World, TextureKind_SolidColor, V3f64(0.5,0.5,0.5), 0,0,0,0,NULL);
-  u32 TGroundB = WorldTextureAdd(World, TextureKind_SolidColor, V3f64(0.8,0.5,0.0), 0,0,0,0,NULL);
+  u32 TGroundA = WorldTextureAdd(World, TextureKind_SolidColor, V3f64(0.45,0.25,0.35), 0,0,0,0,NULL);
+  u32 TGroundB = WorldTextureAdd(World, TextureKind_SolidColor, V3f64(0.48,0.58,0.58), 0,0,0,0,NULL);
   u32 TGroundChecker = WorldTextureAdd(World, TextureKind_Checker, V3f64(0.0,0.5,0.8), TGroundA, TGroundB,0,0,NULL);
-  u32 MGround = WorldMaterialAdd(World, MaterialKind_Lambert, TGroundChecker, 0.0, 0.0);
+  u32 MGround = WorldMaterialAdd(World, MaterialKind_Metal, TGroundChecker, 0.3, 0.0);
   sphere WorldSphere = SurfaceSphereInit(V3f64(0.0,-1000.5,-1.0), 1000.0, MGround);
   WorldSurfaceAdd(World, SurfaceKind_Sphere, &WorldSphere);
   
@@ -213,26 +221,42 @@ void SceneRandom(world *World, camera *Camera, f64 AspectRatio)
       }
     }
   }
-  u32 TA = WorldTextureAdd(World, TextureKind_SolidColor, V3f64(1.0,1.0,1.0),0,0,0,0,NULL);
-  u32 TB = WorldTextureAdd(World, TextureKind_SolidColor, V3f64(30.4,30.2,30.1),0,0,0,0,NULL);
+  u32 TA = WorldTextureAdd(World, TextureKind_SolidColor, V3f64(0.0,1.0,1.0),0,0,0,0,NULL);
+  u32 TB = WorldTextureAdd(World, TextureKind_SolidColor, V3f64(5.4,2.2,2.1),0,0,0,0,NULL);
   u32 TC = WorldTextureAdd(World, TextureKind_SolidColor, V3f64(0.7,0.6,0.5),0,0,0,0,NULL);
-  u32 M1 = WorldMaterialAdd(World, MaterialKind_Dielectric, TA, 0.3, 1.5);
-  u32 M2 = WorldMaterialAdd(World, MaterialKind_DiffuseLight, TB, 0.3, 1.5);
+  u32 TG = WorldTextureAdd(World, TextureKind_SolidColor, V3f64(0.55,0.43,0.2),0,0,0,0,NULL);
+  u32 M1 = WorldMaterialAdd(World, MaterialKind_Dielectric, TA, 0.0, 1.2);
+  u32 M1A = WorldMaterialAdd(World, MaterialKind_Dielectric, TA, 0.0, -1.2);
+  u32 M2 = WorldMaterialAdd(World, MaterialKind_DiffuseLight, TB, 0.0, 0.0);
   u32 M3 = WorldMaterialAdd(World, MaterialKind_Metal, TC, 0.0, 0.0);
-  sphere Sphere[3] = {0};
+  u32 M4 = WorldMaterialAdd(World, MaterialKind_Metal, TG, 0.12, 0.0);
+  sphere Sphere[5] = {0};
   Sphere[0] = SurfaceSphereInit(V3f64( 0.0,1.0,0.0), 1.0, M3);
-  Sphere[1] = SurfaceSphereInit(V3f64(-4.0,1.0,0.0), 1.0, M2);
+  Sphere[1] = SurfaceSphereInit(V3f64( 2.0,2.0,0.0), 0.5, M2);
   Sphere[2] = SurfaceSphereInit(V3f64( 4.0,1.0,0.0), 1.0, M1);
+  Sphere[3] = SurfaceSphereInit(V3f64( 4.0,1.0,0.0), 0.50, M4);
+  Sphere[4] = SurfaceSphereInit(V3f64( 4.0,1.0,0.0), 0.70, M1A);
   WorldSurfaceAdd(World, SurfaceKind_Sphere, &Sphere[0]);
   WorldSurfaceAdd(World, SurfaceKind_Sphere, &Sphere[1]);
   WorldSurfaceAdd(World, SurfaceKind_Sphere, &Sphere[2]);
+  WorldSurfaceAdd(World, SurfaceKind_Sphere, &Sphere[3]);
+  WorldSurfaceAdd(World, SurfaceKind_Sphere, &Sphere[4]);
   WorldBVHRootListInit(World, 1);
   BVHInit(&World->BVHRoots[0], World->Surfaces, 0, World->SurfaceCount, 0.0, 1.0, &World->Arena);
+  for(u32 i=0;i<World->SurfaceCount; i++)
+  {
+    if(World->Surfaces[i].Kind == SurfaceKind_Sphere &&
+       World->Surfaces[i].Sphere.MatId == M2)
+    {
+      World->Light = &World->Surfaces[i];
+    }
+  }
   return;
 }
 void SceneCornellBox(world *World, camera *Camera, f64 AspectRatio)
 {
-  World->DefaultBackground = V3f64(0.0,0.0,0.0);
+  World->DefaultBackground[0] = V3f64(0.0,0.0,0.0);
+  World->DefaultBackground[1] = V3f64(0.0,0.0,0.0);
   // TODO(MIGUEL): fix this
   // CAMERA
   v3f64 LookFrom = V3f64(278.0,278.0,-800.0);
@@ -246,7 +270,7 @@ void SceneCornellBox(world *World, camera *Camera, f64 AspectRatio)
   u32 TR = WorldTextureAdd(World, TextureKind_SolidColor, V3f64(0.65,0.05,0.05), 0,0,0,0,NULL);
   u32 TW = WorldTextureAdd(World, TextureKind_SolidColor, V3f64(0.73,0.73,0.73), 0,0,0,0,NULL);
   u32 TG = WorldTextureAdd(World, TextureKind_SolidColor, V3f64(0.12,0.45,0.15), 0,0,0,0,NULL);
-  u32 TL = WorldTextureAdd(World, TextureKind_SolidColor, V3f64(15,15,15), 0,0,0,0,NULL);
+  u32 TL = WorldTextureAdd(World, TextureKind_SolidColor, V3f64(4,4,4), 0,0,0,0,NULL);
   u32 MR = WorldMaterialAdd(World, MaterialKind_Lambert, TR,0.0,0.0);
   u32 MW = WorldMaterialAdd(World, MaterialKind_Lambert, TW,0.0,0.0);
   u32 MG = WorldMaterialAdd(World, MaterialKind_Lambert, TG,0.0,0.0);
@@ -261,7 +285,7 @@ void SceneCornellBox(world *World, camera *Camera, f64 AspectRatio)
   rect RXZLight = SurfaceRectXZInit(213.0,343.0,   227.0,332.0,   554.0,    ML);
   rect RXZT     = SurfaceRectXZInit(0.0,555.0,     0.0,555.0,     555.0,    MW);
   rect RXZB     = SurfaceRectXZInit(0.0,555.0,     0.0,555.0,     0.0  ,    MW);
-  WorldSurfaceAdd(World, SurfaceKind_RectXZ, &RXZLight);
+  surface *LightRef = WorldSurfaceAdd(World, SurfaceKind_RectXZ, &RXZLight);
   WorldSurfaceAdd(World, SurfaceKind_RectXZ, &RXZT);
   WorldSurfaceAdd(World, SurfaceKind_RectXZ, &RXZB);
   
@@ -279,13 +303,18 @@ void SceneCornellBox(world *World, camera *Camera, f64 AspectRatio)
   WorldSurfaceAdd(World, SurfaceKind_TransformedInst, &XFB);
   WorldSurfaceAdd(World, SurfaceKind_TransformedInst, &XFS);
   
+  World->Light = LightRef;
+  Assert(World->Light);
+  
   WorldBVHRootListInit(World, 1);
   BVHInit(&World->BVHRoots[0], World->Surfaces, 0, World->SurfaceCount, 0.0, 1.0, &World->Arena);
+  
   return;
 }
 void SceneTestCornellBox(world *World, camera *Camera, f64 AspectRatio)
 {
-  World->DefaultBackground = V3f64(0.8,0.83,0.9);
+  World->DefaultBackground[0] = V3f64(0.8,0.83,0.9);
+  World->DefaultBackground[1] = V3f64(0.8,0.83,0.9);
   // TODO(MIGUEL): fix this
   // CAMERA
   v3f64 LookFrom = V3f64(0.0,2000.0,-100.0);
@@ -339,8 +368,132 @@ void SceneTestCornellBox(world *World, camera *Camera, f64 AspectRatio)
   BVHInit(&World->BVHRoots[0], World->Surfaces, 0, World->SurfaceCount, 0.0, 1.0, &World->Arena);
   return;
 }
-//void SceneCornellSmoke(world *World, camera *Camera, f64 AspectRatio) { return; } //TODO: IMPLEMENT
-//void SceneFinal(world *World, camera *Camera, f64 AspectRatio) { return; } //TODO: IMPLEMENT
-
+//void SceneCornellSmoke(world *World, camera *Camera, f64 AspectRatio){ return; }
+void SceneFinal(world *World, camera *Camera, f64 AspectRatio)
+{ 
+  //CAMERA
+  v3f64 LookFrom = V3f64(0.0,2000.0,-100.0);
+  v3f64 LookAt   = V3f64(0.0,0.0,0.0);
+  v3f64 RelUp    = V3f64(0.0,1.0,0.0);
+  f64   DistToFocus = 150.0;
+  f64   FOV = 40.0;
+  f64   Aperture = 0.08;
+  WriteToRef(Camera, CameraInit(LookFrom, LookAt, RelUp, FOV, AspectRatio, Aperture, DistToFocus, 0.0, 1.0));
+  
+  u32 BVHCount = 0;
+  u32 LastSurfaceCount = 0;
+  int BoxPerSide = 20;
+  u32 TGround = WorldTextureAdd (World, TextureKind_SolidColor, V3f64(0.48, 0.83, 0.53), 0,0,0,0.0,NULL);
+  u32 MGround = WorldMaterialAdd(World, MaterialKind_Lambert, TGround, 0.0,0.0);
+  
+  for(int i=0;i<BoxPerSide;i++)
+  {
+    for(int j=0;j<BoxPerSide;j++)
+    {
+      f64 w = -100.0;
+      f64 x0 = 1000.0 + i*w;
+      f64 z0 = 1000.0 + j*w;
+      f64 y0 = 0.0;
+      f64 x1 = x0 + w;
+      f64 y1 = RandF64Range(1.0, 101.0);
+      f64 z1 = z0 + w;
+      box Box = SurfaceBoxInit(V3f64(x0,y0,z0), V3f64(x1,y1,z1), MGround);
+      WorldSurfaceAdd(World, SurfaceKind_Box, &Box);
+    }
+  }
+  BVHInit(&World->BVHRoots[BVHCount++], World->Surfaces, LastSurfaceCount, World->SurfaceCount-1, 0.0,1.0, &World->Arena);
+  LastSurfaceCount = World->SurfaceCount;
+  
+  u32 TLight = WorldTextureAdd(World, TextureKind_SolidColor, V3f64(7,7,7), 0,0,0,0,NULL);
+  WorldMaterialAdd(World, MaterialKind_DiffuseLight, TLight, 0.0,0.0);
+  
+  
+  // MOVING SPHERE
+  v3f64 Center1 = V3f64(400,400,400);
+  v3f64 Center2 = Add(Center1,V3f64(30,0,0));
+  u32   TSphereMoving = WorldTextureAdd(World, TextureKind_SolidColor, V3f64(0.7,0.3,0.1), 0,0,0,0.0,NULL);
+  u32   MSphereMoving = WorldMaterialAdd(World, MaterialKind_Lambert, TSphereMoving, 0.0,0.0);
+  sphere_moving SphereMoving = SurfaceSphereMovingInit(Center1, Center2, 0.0, 1.0, 50.0, MSphereMoving);
+  WorldSurfaceAdd(World, SurfaceKind_SphereMoving, &SphereMoving);
+  
+  
+  // GLASS & METAL
+  sphere SGlass = SurfaceSphereInit(V3f64(260,150,45), 50.0, WorldMaterialAdd(World, MaterialKind_Dielectric,0,0.0,1.5));
+  sphere SMetal = SurfaceSphereInit(V3f64(0,150,145), 50.0, WorldMaterialAdd(World, MaterialKind_Metal,0,1.0,0.0));
+  WorldSurfaceAdd(World, SurfaceKind_Sphere, &SGlass);
+  WorldSurfaceAdd(World, SurfaceKind_Sphere, &SMetal);
+  
+  // CONSTANT MEDIUM
+  //first
+  sphere SBoundary = SurfaceSphereInit(V3f64(360,150,145), 70.0, WorldMaterialAdd(World, MaterialKind_Dielectric,0,0.0,1.5));
+  surface *BoundarySurface = WorldSurfaceStaticAdd(World, SurfaceKind_Sphere, &SBoundary);
+  u32 TBoundary = WorldTextureAdd(World, TextureKind_SolidColor, V3f64(0.2,0.4,0.9),0,0,0,0.0,NULL);
+  u32 MBoundary = WorldMaterialAdd(World,MaterialKind_Lambert,TBoundary,0.0,0.0);
+  constant_medium Medium  = SurfaceConstantMediumInit(BoundarySurface, 0.2, MBoundary);
+  WorldSurfaceAdd(World, SurfaceKind_ConstantMedium, &Medium);
+  //second
+  sphere SBoundary2 = SurfaceSphereInit(V3f64(0,0,0), 5000.0, WorldMaterialAdd(World, MaterialKind_Dielectric,0,0.0,1.5));
+  surface *BoundarySurface2 = WorldSurfaceStaticAdd(World, SurfaceKind_Sphere, &SBoundary2);
+  u32 TBoundary2 = WorldTextureAdd(World, TextureKind_SolidColor, V3f64(1.0,1.0,1.0),0,0,0,0.0,NULL);
+  u32 MBoundary2 = WorldMaterialAdd(World,MaterialKind_Lambert,TBoundary2,0.0,0.0);
+  constant_medium Medium2  = SurfaceConstantMediumInit(BoundarySurface2, 0.2, MBoundary2);
+  WorldSurfaceAdd(World, SurfaceKind_ConstantMedium, &Medium2);
+  
+  BVHInit(&World->BVHRoots[BVHCount], World->Surfaces, LastSurfaceCount, World->SurfaceCount-1, 0.0,1.0, &World->Arena);
+  LastSurfaceCount = World->SurfaceCount;
+  
+  //CUBE OF SPHERES
+  int ns = 1000;
+  for(int j=0;j<ns;j++)
+  {
+    
+  }
+  WorldBVHRootListInit(World, 1);
+  BVHInit(&World->BVHRoots[BVHCount], World->Surfaces, 0, World->SurfaceCount-1, 0.0,1.0, &World->Arena);
+  
+  
+  return; 
+} 
+void SceneTestNanIssue(world *World, camera *Camera, f64 AspectRatio)
+{
+  World->DefaultBackground[0] = V3f64(0.7,0.8,1.0);
+  World->DefaultBackground[1] = V3f64(0.7,0.8,1.0);
+  // CAMERA
+  v3f64 LookFrom = V3f64(13.0,2.0,3.0);
+  v3f64 LookAt   = V3f64(0.0,0.0,0.0);
+  v3f64 RelUp    = V3f64(0.0,1.0,0.0);
+  f64   DistToFocus = 20.0;
+  f64   FOV = 20.0;
+  f64   Aperture = 0.1;
+  WriteToRef(Camera, CameraInit(LookFrom, LookAt, RelUp, FOV, AspectRatio, Aperture, DistToFocus, 0.0, 1.0));
+  
+  //Make Textures
+  u32 TGroundA = WorldTextureAdd(World, TextureKind_SolidColor, V3f64(0.5,0.5,0.5), 0,0,0,0,NULL);
+  u32 TBallA = WorldTextureAdd(World, TextureKind_SolidColor, V3f64(0.1,0.9,0.1), 0, 0,0,0,NULL);
+  u32 TLightA = WorldTextureAdd(World, TextureKind_SolidColor, V3f64(5.0,7.0,8.0), 0, 0,0,0,NULL);
+  
+  //Make Materials
+  u32 MGround = WorldMaterialAdd(World, MaterialKind_Lambert, TGroundA, 0.0, 0.0);
+  u32 MBall = WorldMaterialAdd(World, MaterialKind_Lambert, TBallA, 0.0, 0.0);
+  u32 MLight = WorldMaterialAdd(World, MaterialKind_Lambert, TLightA, 0.0, 0.0);
+  
+  //Make Surfaces
+  sphere WorldSphere = SurfaceSphereInit(V3f64(0.0,-1000.5,-1.0), 1000.0, MGround);
+  sphere BallSphere = SurfaceSphereInit(V3f64(0.0,0.0,0.0), 1.0, MBall);
+  sphere LightSphere = SurfaceSphereInit(V3f64(0.0,2.0,0.0), 1.0, MLight);
+  
+  //Add Surfaces
+  WorldSurfaceAdd(World, SurfaceKind_Sphere, &WorldSphere);
+  WorldSurfaceAdd(World, SurfaceKind_Sphere, &BallSphere);
+  surface *Light = WorldSurfaceAdd(World, SurfaceKind_Sphere, &LightSphere);
+  
+  //Add Only Light
+  World->Light = Light;
+  
+  //Make BVH
+  WorldBVHRootListInit(World, 1);
+  BVHInit(&World->BVHRoots[0], World->Surfaces, 0, World->SurfaceCount, 0.0, 1.0, &World->Arena);
+  return;
+}
 
 #endif //RTSCENES_H

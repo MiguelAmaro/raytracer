@@ -98,6 +98,16 @@ b32 AABBInitTransformedInst(transformed_inst *Instance, aabb *Output)
   }
   return AABB_ISBOUNDABLE;
 }
+b32 AABBInitConstantMedium(constant_medium *Medium, aabb *Output)
+{
+  b32 Result = AABBInitSurface(Medium->Boundary, 0.0,0.0, Output);
+  return Result;
+}
+b32 AABBInitFlipFace(flip_face *FlipFace, aabb *Output)
+{
+  b32 Result = AABBInitSurface(FlipFace->Surface, 0.0,0.0, Output);
+  return Result;
+}
 b32 AABBInitSurface(surface *Surface, f64 Time0, f64 Time1, aabb *Output)
 {
   b32 Result = AABB_ISNOTBOUNDABLE;
@@ -121,11 +131,17 @@ b32 AABBInitSurface(surface *Surface, f64 Time0, f64 Time1, aabb *Output)
     case SurfaceKind_Box: {
       Result = AABBInitBox(&Surface->Box, Output);
     }break;
+    case SurfaceKind_ConstantMedium: {
+      Result = AABBInitConstantMedium(&Surface->ConstantMedium, Output);
+    }break;
     case SurfaceKind_TransformedInst: {
       Result = AABBInitTransformedInst(&Surface->TransformedInst, Output);
     }break;
     case SurfaceKind_BVHNode: {
       Result = AABBInitBVHNode(&Surface->BvhNode, Output);
+    }break;
+    case SurfaceKind_FlipFace: {
+      Result = AABBInitFlipFace(&Surface->FlipFace, Output);
     }break;
   }
   return Result;
