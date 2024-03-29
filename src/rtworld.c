@@ -10,6 +10,9 @@ inline b32 WorldMaterialStackFull       (world *World) { return (World->Material
 //textures
 inline b32 WorldTextureStackEmpty      (world *World) { return (World->TextureNext == World->Textures); }
 inline b32 WorldTextureStackFull       (world *World) { return (World->TextureNext == World->TextureOnePastLast); }
+//lights
+inline b32 WorldLightStackEmpty      (world *World) { return (World->LightNext == World->Lights); }
+inline b32 WorldLightStackFull       (world *World) { return (World->LightNext == World->LightOnePastLast); }
 //noises
 inline b32 WorldNoiseStackEmpty      (world *World) { return (World->NoiseNext == World->Noises); }
 inline b32 WorldNoiseStackFull       (world *World) { return (World->NoiseNext == World->NoiseOnePastLast); }
@@ -37,6 +40,10 @@ world *WorldInit(v3f64 Background)
   World->TextureCount       = 0;
   World->TextureNext        = World->Textures;
   World->TextureOnePastLast = World->Textures+WORLD_STACK_MAXCOUNT;
+  //lights
+  World->LightCount       = 0;
+  World->LightNext        = World->Lights;
+  World->LightOnePastLast = World->Lights+WORLD_STACK_MAXCOUNT;
   //noises
   World->NoiseCount       = 0;
   World->NoiseNext        = World->Noises;
@@ -207,7 +214,7 @@ u32 WorldTextureAdd(world *World, texture_kind Kind,
   }
   WriteToRef(World->TextureNext, NewTex);
   // NOTE(MIGUEL): This could be an issue with overflow and computiong wrong index
-  u32 TexId = (u32)((u64)World->TextureNext-(u64)World->Textures)/sizeof(texture);
+  u32 TexId = GetElementIndex(World->Textures, World->TextureNext, texture);
   Assert(TexId != TEXTURE_INVALID_ID);
   World->TextureNext++;
   World->TextureCount++;
@@ -226,7 +233,7 @@ u32 WorldMaterialAdd(world *World, material_kind Kind, u32 TexId, f64 Fuzziness,
   };
   WriteToRef(World->MaterialNext, NewMat);
   // NOTE(MIGUEL): This could be an issue with overflow and computiong wrong index
-  u32 MatId = (u32)((u64)World->MaterialNext-(u64)World->Materials)/sizeof(material);
+  u32 MatId = GetElementIndex(World->Materials, World->MaterialNext, material);
   Assert(MatId != MATERIAL_INVALID_ID);
   World->MaterialNext++;
   World->MaterialCount++;
@@ -249,6 +256,17 @@ u32 WorldNoiseAdd(world *World, noise_kind Kind)
   World->NoiseNext++;
   World->NoiseCount++;
   return NoiseId;
+}
+u32 WorldLightAdd(world *World, light_kind Kind, surface *Surface)
+{
+  if(WorldLightStackFull(World)) { return LIGHT_INVALID_ID; }
+  light NewLight = { Kind, Surface };
+  
+  u32 LightId = GetElementIndex(World->Lights, World->LightNext, light);
+  WriteToRef(World->LightNext, NewLight);
+  World->LightNext++;
+  World->LightCount++;
+  return LightId;
 }
 
 //~ ACCESSORS
@@ -284,10 +302,10 @@ noise *WorldNoiseGetFromId(world *World, u32 NoiseId)
 }
 
 //~ WORLD TRAVERSAL
-b32 WorldHit(world *World, hit_info *HitInfo, ray Ray, f64 Mint, f64 Maxt, b32 UseBVH)
+surface *WorldHit(world *World, hit_info *HitInfo, ray Ray, f64 Mint, f64 Maxt, b32 UseBVH)
 {
-  b32 Result = (UseBVH?
-                SurfaceBVHListHit(World->BVHRoots, World->BVHRootCount, HitInfo, Ray, Mint, Maxt):
-                SurfaceListHit   (World->Surfaces, World->SurfaceCount, HitInfo, Ray, Mint, Maxt));
+  surface *Result = (UseBVH?
+                     SurfaceBVHListHit(World->BVHRoots, World->BVHRootCount, HitInfo, Ray, Mint, Maxt):
+                     SurfaceListHit   (World->Surfaces, World->SurfaceCount, HitInfo, Ray, Mint, Maxt));
   return Result;
 }

@@ -67,21 +67,6 @@ work_order WorkOrderInit(u8 *ImageBuffer, u32 ImageWidth, u32 ImageHeight,
   };
   return Result;
 }
-b32 RenderTile(work_queue *Queue);
-DWORD WorkProcRenderTiles(void *Param)
-{
-  work_queue *Queue = (work_queue *)Param;
-  
-  thread_ctx Context = {0};
-  u32 TcxAllocSize = Megabytes(1000);
-  ThreadCtxInit(&Context, OSMemoryAlloc(TcxAllocSize), TcxAllocSize);
-  ThreadCtxSet(&Context);
-  
-  WaitForSingleObject((HANDLE)Queue->BeginSignal, INFINITE); 
-  while(RenderTile(Queue)) {};
-  fprintf(stderr, "exiting thread[%5lu]\n",GetCurrentThreadId());
-  return 0;
-}
 work_queue WorkQueueInit(tile_fmt TileFormat, u8 *ImageBuffer, u32 ImageWidth, u32 ImageHeight, world *World, u32 MaxDepth, camera *Camera, u32 SamplesPerPixel, u32 CoreCount)
 {
   u32 TileWidth  = ImageWidth/(CoreCount*4);
@@ -120,12 +105,12 @@ work_queue WorkQueueInit(tile_fmt TileFormat, u8 *ImageBuffer, u32 ImageWidth, u
   }
   return Result;
 }
-void WorkQueueLaunchThreads(work_queue *WorkQueue)
+void WorkQueueLaunchThreads(work_queue *WorkQueue, osthreadproc WorkProc)
 {
   WorkQueue->BeginSignal = (u64)CreateEvent(NULL, TRUE, FALSE, TEXT("WorkQueue Begin Signal"));
   for(u32 ThreadIdx=0; ThreadIdx<WorkQueue->ThreadCount; ThreadIdx++)
   {
-    u64 ThreadHandle = OSThreadCreate(WorkQueue, WorkProcRenderTiles);
+    u64 ThreadHandle = OSThreadCreate(WorkQueue, WorkProc);
     fprintf(stderr, "thread launched... id:%lu\n", GetThreadId((HANDLE)ThreadHandle));
     WorkQueue->ThreadHandles[ThreadIdx] = ThreadHandle;
   }

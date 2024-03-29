@@ -339,8 +339,8 @@ b32 MaterialScatter(material *Material, texture *Texture, ray Ray, hit_info *Hit
     } break;
     case MaterialKind_Isotropic:
     {
-      //WriteToRef(Scattered, RayInit(HitInfo->Pos, RandInUnitSphere(), Ray.Time));
-      //WriteToRef(Atten, TextureGetColor(Texture, HitInfo->u,HitInfo->v,HitInfo->Pos));
+      //ScatterInfo->SpecularRay = RayInit(HitInfo->Pos, RandInUnitSphere(), Ray.Time);
+      //ScatterInfo->Atten = TextureGetColor(Texture, HitInfo->u,HitInfo->v, HitInfo->Pos);
       Result = SCATTER_PROCESS;
     } break;
   }
@@ -501,7 +501,7 @@ b32 SurfaceRectYZHit(rect *Rect, hit_info *HitInfo, ray Ray, f64 Mint, f64 Maxt)
 b32 SurfaceBoxHit(box *Box, hit_info *HitInfo, ray Ray, f64 Mint, f64 Maxt)
 {
   //// TODO(MIGUEL): Test AABB first
-  b32 Result = SurfaceListHit(Box->SidesList, 6, HitInfo, Ray, Mint, Maxt);
+  b32 Result = (SurfaceListHit(Box->SidesList, 6, HitInfo, Ray, Mint, Maxt) != NULL);
   return Result;
 }
 b32 SurfaceTransformedInstHit(transformed_inst *Instance, hit_info *HitInfo, ray Ray, f64 Mint, f64 Maxt)
@@ -666,9 +666,24 @@ b32 SurfaceHit(surface *Surface, hit_info *HitInfo, ray Ray, f64 Mint, f64 Maxt)
   }
   return Result;
 }
-b32 SurfaceListHit(surface *Surfaces, u32 SurfaceCount, hit_info *HitInfo, ray Ray, f64 Mint, f64 Maxt)
+/*NOTE():
+*         The ListHit function used to return a boolean indicating that the surface was hit
+*         however the calling function has PDF related functions that exepect a reference to a surface.
+*         I am changing this fucntion to return a NULL ptr when no hit was detected and a surface type
+*         ptr to the object that was hit when the hit was detected. 
+*         
+*         UPDATE:
+*         The above was made on a bad assumption. The surface that is meant to be provieded is the surface type of
+*         of the light source no the hit surface. However the change did not impact the a exectution of the program.
+*         
+*         
+*         
+*         
+*         
+*/
+surface *SurfaceListHit(surface *Surfaces, u32 SurfaceCount, hit_info *HitInfo, ray Ray, f64 Mint, f64 Maxt)
 {
-  b32 SurfaceWasHit = 0;
+  surface *HitSurfaceRef = NULL;
   f64 ClosestHit = Maxt;
   hit_info TempHitInfo = {0};
   
@@ -676,26 +691,26 @@ b32 SurfaceListHit(surface *Surfaces, u32 SurfaceCount, hit_info *HitInfo, ray R
   {
     if(SurfaceHit(&Surfaces[SurfaceId], &TempHitInfo, Ray, Mint, ClosestHit))
     {
-      SurfaceWasHit = 1;
+      HitSurfaceRef = &Surfaces[SurfaceId];
       ClosestHit = TempHitInfo.t;
       WriteToRef(HitInfo, TempHitInfo);
     }
   }
-  return SurfaceWasHit;
+  return HitSurfaceRef;
 }
-b32 SurfaceBVHListHit(surface *BVHList, u32 BVHCount, hit_info *HitInfo, ray Ray, f64 Mint, f64 Maxt)
+surface *SurfaceBVHListHit(surface *BVHList, u32 BVHCount, hit_info *HitInfo, ray Ray, f64 Mint, f64 Maxt)
 {
-  b32 SurfaceWasHit = 0;
+  surface *HitSurfaceRef = NULL;
   f64 ClosestHit = Maxt;
   hit_info TempHitInfo = {0};
   for(u32 BVHId=0; BVHId<BVHCount; BVHId++)
   {
     if(SurfaceHit(&BVHList[BVHId], &TempHitInfo, Ray, Mint, ClosestHit))
     {
-      SurfaceWasHit = 1;
+      HitSurfaceRef = &BVHList[BVHId];
       ClosestHit = TempHitInfo.t;
       WriteToRef(HitInfo, TempHitInfo);
     }
   }
-  return SurfaceWasHit;
+  return HitSurfaceRef;
 }

@@ -45,7 +45,7 @@ f64 PdfCosineGetValue(pdf *Pdf, v3f64 w)
 {
   //listing 24
   f64 Cosine = Dot(Normalize(w), Pdf->Basis.w);
-  f64 Result = (Cosine<0.0)?0.0:Cosine/Pi64;
+  f64 Result = Max(0.0, Cosine/Pi64);
   return Result;
 }
 f64 PdfSurfaceGetValue(pdf *Pdf, v3f64 w)

@@ -1,7 +1,27 @@
 #ifndef RTSCENES_H
 #define RTSCENES_H
 
+//BUILDER
+void MakePointLight(world *World, v3f64 Pos, f64 Radius, v3f64 Color)
+{
+  u32      TId  = WorldTextureAdd(World, TextureKind_SolidColor, Color, 0,0,0,0,NULL);
+  u32      MId  = WorldMaterialAdd(World, MaterialKind_DiffuseLight, TId, 0.0, 0.0);
+  sphere   Data = SurfaceSphereInit(Pos, Radius, MId);
+  surface *Ref  = WorldSurfaceAdd(World, SurfaceKind_Sphere, &Data);
+  WorldLightAdd(World, LightKind_Point, Ref);
+  return;
+}
+void MakeColoredSphere(world *World, v3f64 Pos, f64 Radius, v3f64 Color, f64 Fuzz)
+{
+  u32     TId = WorldTextureAdd(World, TextureKind_SolidColor, Color, 0,0,0,0, NULL);
+  u32     MId = WorldMaterialAdd(World, MaterialKind_Lambert, TId, Fuzz, 0.0);
+  sphere Data = SurfaceSphereInit(Pos, Radius, MId);
+  WorldSurfaceAdd(World, SurfaceKind_Sphere, &Data);
+  return;
+}
 
+
+//Scene
 void SceneBVHTest(world *World, camera *Camera, f64 AspectRatio)
 {
   World->DefaultBackground[0] = V3f64(1.0,0.827,0.657); //bright orange
@@ -15,27 +35,11 @@ void SceneBVHTest(world *World, camera *Camera, f64 AspectRatio)
   f64   Aperture = 0.1;
   WriteToRef(Camera, CameraInit(LookFrom, LookAt, RelUp, FOV, AspectRatio, Aperture, DistToFocus, 0.0, 1.0));
   
-  f64 Fuzz = 0.0;
-  v3f64 AlbedoR = V3f64(1.0,0.0,0.0);
-  v3f64 AlbedoG = V3f64(0.0,1.0,0.0);
-  v3f64 AlbedoB = V3f64(1.0,0.0,1.0);
+  MakeColoredSphere(World, V3f64(0.0, 0.2, 0.0), 0.2, V3f64(1.0,0.0,0.0), 0.0);
+  MakeColoredSphere(World, V3f64(4.0, 0.2, 4.0), 0.2, V3f64(0.0,1.0,0.0), 0.0);
+  MakeColoredSphere(World, V3f64(2.0, 0.2, 2.0), 0.2, V3f64(1.0,0.0,1.0), 0.0);
+  MakePointLight(World, V3f64(4.0, 0.2, 4.0), 0.02, V3f64(1.0,0.0,1.0));
   
-  v3f64 CenterA = V3f64(0.0, 0.2, 0.0);
-  v3f64 CenterB = V3f64(4.0, 0.2, 4.0);
-  v3f64 CenterC = V3f64(2.0, 0.2, 2.0);
-  u32 TA = WorldTextureAdd(World, TextureKind_SolidColor, AlbedoR, 0,0,0,0, NULL);
-  u32 TB = WorldTextureAdd(World, TextureKind_SolidColor, AlbedoG, 0,0,0,0, NULL);
-  u32 TC = WorldTextureAdd(World, TextureKind_SolidColor, AlbedoB, 0,0,0,0, NULL);
-  u32 MA = WorldMaterialAdd(World, MaterialKind_Lambert, TA, Fuzz,0.0);
-  u32 MB = WorldMaterialAdd(World, MaterialKind_Lambert, TB, Fuzz,0.0);
-  u32 MC = WorldMaterialAdd(World, MaterialKind_Lambert, TC, Fuzz,0.0);
-  sphere Sphere[3] = {0};
-  Sphere[0] = SurfaceSphereInit(CenterA, 0.2, MA);
-  Sphere[1] = SurfaceSphereInit(CenterB, 0.2, MB);
-  Sphere[2] = SurfaceSphereInit(CenterC, 0.2, MC);
-  WorldSurfaceAdd(World, SurfaceKind_Sphere, &Sphere[0]);
-  WorldSurfaceAdd(World, SurfaceKind_Sphere, &Sphere[1]);
-  WorldSurfaceAdd(World, SurfaceKind_Sphere, &Sphere[2]);
   WorldBVHRootListInit(World, 1);
   BVHInit(&World->BVHRoots[0], World->Surfaces, 0, World->SurfaceCount, 0.0, 1.0, &World->Arena);
   return;
@@ -154,7 +158,7 @@ void SceneSimpleLight(world *World, camera *Camera, f64 AspectRatio)
   u32  ML = WorldMaterialAdd(World, MaterialKind_DiffuseLight, TL,0.0,0.0);
   rect RA = SurfaceRectXYInit(3.0,5.0,1.0,3.0,-2.0, ML);
   surface *LightRef = WorldSurfaceAdd(World, SurfaceKind_RectXY, &RA);
-  World->Light = LightRef;
+  World->Lights[0] = (light){LightKind_Point, LightRef};
   WorldBVHRootListInit(World, 1);
   BVHInit(&World->BVHRoots[0], World->Surfaces, 0, World->SurfaceCount, 0.0, 1.0, &World->Arena);
   return;
@@ -248,7 +252,7 @@ void SceneRandom(world *World, camera *Camera, f64 AspectRatio)
     if(World->Surfaces[i].Kind == SurfaceKind_Sphere &&
        World->Surfaces[i].Sphere.MatId == M2)
     {
-      World->Light = &World->Surfaces[i];
+      World->Lights[0] = (light){ LightKind_Point, &World->Surfaces[i]};
     }
   }
   return;
@@ -266,6 +270,7 @@ void SceneCornellBox(world *World, camera *Camera, f64 AspectRatio)
   f64   FOV = 40.0;
   f64   Aperture = 0.08;
   WriteToRef(Camera, CameraInit(LookFrom, LookAt, RelUp, FOV, AspectRatio, Aperture, DistToFocus, 0.0, 1.0));
+  
   
   u32 TR = WorldTextureAdd(World, TextureKind_SolidColor, V3f64(0.65,0.05,0.05), 0,0,0,0,NULL);
   u32 TW = WorldTextureAdd(World, TextureKind_SolidColor, V3f64(0.73,0.73,0.73), 0,0,0,0,NULL);
@@ -303,8 +308,8 @@ void SceneCornellBox(world *World, camera *Camera, f64 AspectRatio)
   WorldSurfaceAdd(World, SurfaceKind_TransformedInst, &XFB);
   WorldSurfaceAdd(World, SurfaceKind_TransformedInst, &XFS);
   
-  World->Light = LightRef;
-  Assert(World->Light);
+  World->Lights[0] = (light){ LightKind_Point, LightRef};
+  Assert(&World->Lights[0]);
   
   WorldBVHRootListInit(World, 1);
   BVHInit(&World->BVHRoots[0], World->Surfaces, 0, World->SurfaceCount, 0.0, 1.0, &World->Arena);
@@ -324,6 +329,7 @@ void SceneTestCornellBox(world *World, camera *Camera, f64 AspectRatio)
   f64   FOV = 40.0;
   f64   Aperture = 0.08;
   WriteToRef(Camera, CameraInit(LookFrom, LookAt, RelUp, FOV, AspectRatio, Aperture, DistToFocus, 0.0, 1.0));
+  
   
   u32 TR = WorldTextureAdd(World, TextureKind_SolidColor, V3f64(0.65,0.05,0.05), 0,0,0,0,NULL);
   u32 TW = WorldTextureAdd(World, TextureKind_SolidColor, V3f64(0.73,0.73,0.73), 0,0,0,0,NULL);
@@ -379,13 +385,14 @@ void SceneFinal(world *World, camera *Camera, f64 AspectRatio)
   f64   FOV = 40.0;
   f64   Aperture = 0.08;
   WriteToRef(Camera, CameraInit(LookFrom, LookAt, RelUp, FOV, AspectRatio, Aperture, DistToFocus, 0.0, 1.0));
+  WorldBVHRootListInit(World, 10);
   
   u32 BVHCount = 0;
   u32 LastSurfaceCount = 0;
   int BoxPerSide = 20;
   u32 TGround = WorldTextureAdd (World, TextureKind_SolidColor, V3f64(0.48, 0.83, 0.53), 0,0,0,0.0,NULL);
   u32 MGround = WorldMaterialAdd(World, MaterialKind_Lambert, TGround, 0.0,0.0);
-  
+  MakePointLight(World, V3f64(.0,3.0,0.0), 3.0, V3f64(1.,1.,1.0));
   for(int i=0;i<BoxPerSide;i++)
   {
     for(int j=0;j<BoxPerSide;j++)
@@ -439,7 +446,7 @@ void SceneFinal(world *World, camera *Camera, f64 AspectRatio)
   constant_medium Medium2  = SurfaceConstantMediumInit(BoundarySurface2, 0.2, MBoundary2);
   WorldSurfaceAdd(World, SurfaceKind_ConstantMedium, &Medium2);
   
-  BVHInit(&World->BVHRoots[BVHCount], World->Surfaces, LastSurfaceCount, World->SurfaceCount-1, 0.0,1.0, &World->Arena);
+  BVHInit(&World->BVHRoots[BVHCount++], World->Surfaces, LastSurfaceCount, World->SurfaceCount-1, 0.0,1.0, &World->Arena);
   LastSurfaceCount = World->SurfaceCount;
   
   //CUBE OF SPHERES
@@ -448,7 +455,6 @@ void SceneFinal(world *World, camera *Camera, f64 AspectRatio)
   {
     
   }
-  WorldBVHRootListInit(World, 1);
   BVHInit(&World->BVHRoots[BVHCount], World->Surfaces, 0, World->SurfaceCount-1, 0.0,1.0, &World->Arena);
   
   
@@ -467,28 +473,9 @@ void SceneTestNanIssue(world *World, camera *Camera, f64 AspectRatio)
   f64   Aperture = 0.1;
   WriteToRef(Camera, CameraInit(LookFrom, LookAt, RelUp, FOV, AspectRatio, Aperture, DistToFocus, 0.0, 1.0));
   
-  //Make Textures
-  u32 TGroundA = WorldTextureAdd(World, TextureKind_SolidColor, V3f64(0.5,0.5,0.5), 0,0,0,0,NULL);
-  u32 TBallA = WorldTextureAdd(World, TextureKind_SolidColor, V3f64(0.1,0.9,0.1), 0, 0,0,0,NULL);
-  u32 TLightA = WorldTextureAdd(World, TextureKind_SolidColor, V3f64(5.0,7.0,8.0), 0, 0,0,0,NULL);
-  
-  //Make Materials
-  u32 MGround = WorldMaterialAdd(World, MaterialKind_Lambert, TGroundA, 0.0, 0.0);
-  u32 MBall = WorldMaterialAdd(World, MaterialKind_Lambert, TBallA, 0.0, 0.0);
-  u32 MLight = WorldMaterialAdd(World, MaterialKind_Lambert, TLightA, 0.0, 0.0);
-  
-  //Make Surfaces
-  sphere WorldSphere = SurfaceSphereInit(V3f64(0.0,-1000.5,-1.0), 1000.0, MGround);
-  sphere BallSphere = SurfaceSphereInit(V3f64(0.0,0.0,0.0), 1.0, MBall);
-  sphere LightSphere = SurfaceSphereInit(V3f64(0.0,2.0,0.0), 1.0, MLight);
-  
-  //Add Surfaces
-  WorldSurfaceAdd(World, SurfaceKind_Sphere, &WorldSphere);
-  WorldSurfaceAdd(World, SurfaceKind_Sphere, &BallSphere);
-  surface *Light = WorldSurfaceAdd(World, SurfaceKind_Sphere, &LightSphere);
-  
-  //Add Only Light
-  World->Light = Light;
+  MakeColoredSphere(World, V3f64(0.0,-1000.5,-1.0), 1000.0, V3f64(0.5,0.5,0.5), 0.0);
+  MakeColoredSphere(World, V3f64(0.0,0.0,0.0), 1000.0, V3f64(0.1,0.9,0.1), 0.0);
+  MakePointLight   (World, V3f64(0.0,2.0,0.0), 1000.0, V3f64(5.0,7.0,8.0));
   
   //Make BVH
   WorldBVHRootListInit(World, 1);

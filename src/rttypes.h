@@ -7,7 +7,7 @@
 #define ArrayCount(array) sizeof(array)/sizeof(array[0])
 #define WriteToRef(refptr, obj) (*refptr = obj)
 #define ObjCopyFromRef(type, ptr) (*((type *)ptr))
-
+#define GetElementIndex(base, at, type) (u32)(((u64)(at))-((u64)(base)))/(sizeof(type))
 #define Kilobytes(size) (         (size) * 1024LL)
 #define Megabytes(size) (Kilobytes(size) * 1024LL)
 #define Gigabytes(size) (Megabytes(size) * 1024LL)

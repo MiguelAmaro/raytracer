@@ -17,7 +17,8 @@ v3f64 RayColor(ray Ray, s32 Depth, world *World, scratch *Scratch)
   
   f64 Biasedt = 0.5 + 0.5*Ray.Dir.y;
   v3f64 Background = Lerp(World->DefaultBackground[0], World->DefaultBackground[1], Biasedt);
-  if(!WorldHit(World, &HitInfo, Ray, 0.001, Infintyf64(), RT_TRUE)) { return Background; }
+  surface *Surface = WorldHit(World, &HitInfo, Ray, 0.001, Infintyf64(), RT_TRUE);
+  if(!Surface) { return Background; }
   
   material *Mat     = WorldMaterialGetFromId(World, HitInfo.MatId);
   texture  *Tex     = WorldTextureGetFromId(World, Mat->TexId);
@@ -37,7 +38,7 @@ v3f64 RayColor(ray Ray, s32 Depth, world *World, scratch *Scratch)
   pdf PdfA   = {0};//ArenaPushType(Scratch->Arena, pdf);
   pdf PdfB   = {0};//ArenaPushType(Scratch->Arena, pdf);
   pdf PdfMix = {0};//ArenaPushType(Scratch->Arena, pdf);
-  WriteToRef(&PdfA  , PdfInit(PdfKind_Surface, NULL, NULL, World->Light, HitInfo.Pos, V3f64(0,0,0)));
+  WriteToRef(&PdfA  , PdfInit(PdfKind_Surface, NULL, NULL, World->Lights[0].Surface, HitInfo.Pos, HitInfo.Normal));
   WriteToRef(&PdfB  , PdfInit(PdfKind_Cosine, NULL, NULL, NULL, V3f64(0,0,0), HitInfo.Normal));
   WriteToRef(&PdfMix, PdfInit(PdfKind_Mixture, &PdfA, &PdfB, NULL, V3f64(0,0,0), V3f64(0,0,0)));
   

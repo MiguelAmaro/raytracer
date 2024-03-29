@@ -1,3 +1,4 @@
+//#include <stdatomic.h>
 #include <stdio.h>
 #include <stdint.h>
 #include <math.h>
@@ -73,6 +74,20 @@ b32 RenderTile(work_queue *Queue)
   LockedAddAndGetLastValue(&Queue->TileRetiredCount, 1);
   return 1;
 }
+DWORD WorkProcRenderTiles(void *Param)
+{
+  work_queue *Queue = (work_queue *)Param;
+  
+  thread_ctx Context = {0};
+  u32 TcxAllocSize = Megabytes(1000);
+  ThreadCtxInit(&Context, OSMemoryAlloc(TcxAllocSize), TcxAllocSize);
+  ThreadCtxSet(&Context);
+  
+  WaitForSingleObject((HANDLE)Queue->BeginSignal, INFINITE); 
+  while(RenderTile(Queue)) {};
+  fprintf(stderr, "exiting thread[%5lu]\n",GetCurrentThreadId());
+  return 0;
+}
 
 int main(void)
 {
@@ -88,7 +103,7 @@ int main(void)
   ThreadCtxSet(&Context);
   
   f64 AspectRatio = 16.0/9.0;
-  s32 ImageWidth  = 2000;
+  s32 ImageWidth  = 200;
   s32 ImageHeight = (int)(ImageWidth/AspectRatio);
   s32 SamplesPerPixel = 128;
   s32 MaxDepth = 10;
@@ -100,15 +115,16 @@ int main(void)
   camera Camera = {0};
   switch(0)
   {
-    case 0: SceneRandom          (World, &Camera, AspectRatio);  break;
-    case 1: SceneBVHTest         (World, &Camera, AspectRatio);  break;
-    case 2: SceneTwoSpheres      (World, &Camera, AspectRatio);  break;
-    case 3: SceneTwoPerlinSpheres(World, &Camera, AspectRatio);  break;
-    case 4: SceneEarthSolo       (World, &Camera, AspectRatio);  break;
-    case 5: SceneSimpleLight     (World, &Camera, AspectRatio);  break;
-    case 6: SceneCornellBox      (World, &Camera, AspectRatio);  break;
-    case 7: SceneTestCornellBox  (World, &Camera, AspectRatio);  break; //NaN errors: probably issues with rect pdfs
-    case 8: SceneTestNanIssue    (World, &Camera, AspectRatio);  break;
+    case 0: SceneRandom          (World, &Camera, AspectRatio);  break; //working
+    case 1: SceneBVHTest         (World, &Camera, AspectRatio);  break; //bad result
+    case 2: SceneTwoSpheres      (World, &Camera, AspectRatio);  break; //broken
+    case 3: SceneTwoPerlinSpheres(World, &Camera, AspectRatio);  break; //bad result
+    case 4: SceneEarthSolo       (World, &Camera, AspectRatio);  break; //broken
+    case 5: SceneSimpleLight     (World, &Camera, AspectRatio);  break; //bad result no shadows
+    case 6: SceneCornellBox      (World, &Camera, AspectRatio);  break; //bad result completly black
+    case 7: SceneTestCornellBox  (World, &Camera, AspectRatio);  break; //broken NaN errors: probably issues with rect pdfs
+    case 8: SceneTestNanIssue    (World, &Camera, AspectRatio);  break; //working
+    case 10: SceneFinal          (World, &Camera, AspectRatio); break;
     default: fprintf(stderr, "No valid scene chosen\n");
   }
   
@@ -136,7 +152,7 @@ int main(void)
           WorkQueue.TileWidth, WorkQueue.TileHeight);
   
   u64 Begin = OSTimerGetTick();
-  WorkQueueLaunchThreads(&WorkQueue);
+  WorkQueueLaunchThreads(&WorkQueue, WorkProcRenderTiles);
   WorkQueueBeginWork(&WorkQueue);
   while(RenderTile(&WorkQueue))
   {

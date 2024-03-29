@@ -170,7 +170,7 @@ struct scatter_info
   pdf *Pdf;
 };
 
-b32   SurfaceListHit(surface *Surfaces, u32 SurfaceCount, hit_info *Hit, ray Ray, f64 Mint, f64 Maxt);
+surface *SurfaceListHit(surface *Surfaces, u32 SurfaceCount, hit_info *Hit, ray Ray, f64 Mint, f64 Maxt);
 b32   SurfaceHit(surface *Surface, hit_info *Hit, ray Ray, f64 Mint, f64 Maxt);
 b32   SurfaceRectYZHit(rect *Rect, hit_info *Hit, ray Ray, f64 Mint, f64 Maxt);
 b32   SurfaceSphereHit(sphere *Sphere, hit_info *Hit, ray Ray, f64 Mint, f64 Maxt);
